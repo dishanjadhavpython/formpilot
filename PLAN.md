@@ -11,7 +11,7 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 | 0 | Setup & scaffold | ✅ done — `ce1b2ab` |
 | 1 | Encrypted vault | ✅ done — `e745ef4` |
 | 2 | Autofill engine | ✅ done |
-| 3 | Resize/compress to portal spec | ⬜ |
+| 3 | Resize/compress to portal spec | ✅ done |
 | 4 | OCR auto-extract (stretch) | ⬜ |
 | 5 | Polish & reliability | ⬜ |
 
@@ -34,8 +34,9 @@ document images by type. Lock/unlock buttons.
 **Done when:** add data, lock, reload, unlock, see it again — and the raw stored
 value is unreadable ciphertext.
 
-**Deferred out of this phase:** change-passphrase flow; idle auto-lock (Phase 5);
-images capped at 2 MB until the Phase 3 compressor exists.
+**Deferred out of this phase:** change-passphrase flow; idle auto-lock (Phase 5).
+Direct document attachment is capped at 2 MB; larger files go through the Phase 3
+image tool, which compresses then saves to the vault.
 
 ## Phase 2 — Autofill engine ✅
 
@@ -65,19 +66,37 @@ script. Cleared on Lock and on browser restart.
 **Done when:** on a real signup form, "Fill this form" fills your stored fields,
 highlights them, and does not submit.
 
-**Deferred:** checkbox/radio/file inputs; same-origin iframes; a UI for
-reviewing and deleting saved site mappings.
+**Deferred:** checkbox/radio/file inputs; same-origin iframes.
+(The mappings review/delete UI landed alongside Phase 3.)
 
-## Phase 3 — Resize/compress to portal spec ⬜
+## Phase 3 — Resize/compress to portal spec ✅
 
-Vendor `browser-image-compression` into `/vendor`. Pick an image + a preset
-`{format, maxWidthOrHeight, minKB, maxKB}`. Resize the longest edge, then
-binary-search JPEG quality with `canvas.toBlob` until the size lands in band.
-3 presets + custom. Show original vs result and percent saved. Handle the
-impossible-band case gracefully. Save to vault + download.
+`lib/image.js` + the Image tool section of the options page. Pick an image and a
+preset `{format, maxWidthOrHeight, minKB, maxKB}`; the longest edge is scaled to
+the limit, then JPEG quality is binary-searched with `canvas.toBlob` until the
+output lands inside the band. 3 presets plus a custom-spec form whose specs can
+be saved. Shows original vs result, percent saved, dimensions, quality and
+encode count, with Save-to-vault and Download.
+
+**The band is the point.** Ordinary compressors target a *maximum*; portals
+specify a floor as well, and a 6 KB file gets rejected just as surely as a 6 MB
+one. Failure is diagnosed rather than hidden: `TOO_BIG`, `TOO_SMALL`,
+`BAND_TOO_NARROW` and `INVALID_BAND` each explain which end failed, and the
+nearest miss is still offered with an explicit out-of-band warning.
+
+**Vendoring caveat — read `vendor/README.md`.** `browser-image-compression`'s
+default export violates MV3 unless `useWebWorker: false` is passed: it builds a
+worker from a `blob:` URL and `importScripts` the library from jsDelivr at
+runtime. `lib/image.js` uses only the documented namespace helpers
+(`drawFileInCanvas`, for EXIF-correct decoding) and never the default export, so
+neither path is reachable.
 
 **Done when:** a big photo + a "10–200 KB JPEG" preset yields a file inside that
 band at the right dimensions.
+
+**Deferred:** cropping / aspect-ratio enforcement (portals that demand exactly
+3.5x4.5 cm need a crop step, not just a scale); PNG can only be tuned by
+dimension because the encoder ignores the quality argument.
 
 ## Phase 4 — OCR auto-extract (stretch) ⬜
 

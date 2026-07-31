@@ -171,6 +171,30 @@
 
     .usage { font-size: 12px; color: var(--muted); margin-top: 14px; }
     .hidden { display: none !important; }
+
+    /* --- image tool --- */
+    .preset-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .preset-row > div { flex: 1 1 220px; }
+    .custom-preset { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px;
+                     padding: 14px; border: 1px dashed var(--line); border-radius: 8px; }
+    .custom-preset .wide { grid-column: 1 / -1; }
+    .result { display: grid; grid-template-columns: 180px 1fr; gap: 18px; margin-top: 18px;
+              padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfc; }
+    .result img { width: 100%; border-radius: 6px; border: 1px solid var(--line); background: #fff; display: block; }
+    .stats { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13px; align-self: start; }
+    .stats dt { color: var(--muted); }
+    .stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .saved-badge { font-size: 20px; font-weight: 700; color: var(--brand); }
+    .bar { height: 8px; border-radius: 5px; background: #e6ece9; overflow: hidden; margin-top: 10px; grid-column: 1 / -1; }
+    .bar span { display: block; height: 100%; background: var(--brand); }
+
+    /* --- mappings --- */
+    table.maps { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.maps th { text-align: left; font-size: 11px; text-transform: uppercase;
+                    letter-spacing: .04em; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+    table.maps td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    table.maps code { font-size: 11px; word-break: break-all; }
+    table.maps tr:last-child td { border-bottom: none; }
     code { font-size: 12px; background: var(--brand-tint); padding: 1px 5px; border-radius: 4px; }
     ul.roadmap { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
     ul.roadmap li { margin-bottom: 4px; }
@@ -305,6 +329,90 @@
         <span id="saveStatus" class="status" role="status" aria-live="polite"></span>
       </div>
       <p class="usage" id="usage"></p>
+    </section>
+
+    <!-- ============ Image tool (Phase 3) ============ -->
+    <section id="imageView" class="hidden">
+      <h2>Image tool</h2>
+      <p class="hint">
+        Hit a portal's exact spec: resize to the dimension limit, then search JPEG
+        quality until the file lands inside the required KB band &mdash; not just
+        under a maximum. Runs entirely on this device.
+      </p>
+
+      <div class="preset-row">
+        <div>
+          <label for="presetSelect">Preset</label>
+          <select id="presetSelect"></select>
+        </div>
+        <div>
+          <label for="imageFile">Image</label>
+          <input id="imageFile" type="file" accept="image/*">
+        </div>
+      </div>
+
+      <div id="customPreset" class="custom-preset hidden">
+        <div class="wide"><strong style="font-size:13px">Custom spec</strong></div>
+        <div>
+          <label for="cpFormat">Format</label>
+          <select id="cpFormat">
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/png">PNG</option>
+            <option value="image/webp">WebP</option>
+          </select>
+        </div>
+        <div>
+          <label for="cpDim">Max edge (px)</label>
+          <input id="cpDim" type="number" min="16" max="8000" step="1" value="600">
+        </div>
+        <div>
+          <label for="cpMin">Min (KB)</label>
+          <input id="cpMin" type="number" min="1" max="20000" step="1" value="10">
+        </div>
+        <div>
+          <label for="cpMax">Max (KB)</label>
+          <input id="cpMax" type="number" min="2" max="20000" step="1" value="200">
+        </div>
+        <div class="wide">
+          <button id="savePresetBtn" class="secondary tiny" type="button">Save as a preset</button>
+          <span class="sub" id="cpNote">PNG ignores quality &mdash; only the dimension can be tuned.</span>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="resizeBtn" type="button" disabled>Resize to spec</button>
+        <span id="imageStatus" class="status" role="status" aria-live="polite"></span>
+      </div>
+
+      <div id="resultBox" class="result hidden">
+        <img id="resultPreview" alt="Compressed result preview">
+        <dl class="stats" id="resultStats"></dl>
+        <div class="bar"><span id="resultBar" style="width:0%"></span></div>
+      </div>
+
+      <div class="actions hidden" id="resultActions">
+        <select id="resultDocType" style="width:auto">
+          <option value="photo">Passport photo</option>
+          <option value="signature">Signature</option>
+          <option value="pan">PAN card</option>
+          <option value="aadhaar">Aadhaar</option>
+          <option value="marksheet">Marksheet</option>
+          <option value="idProof">Other ID proof</option>
+          <option value="other">Other</option>
+        </select>
+        <button id="saveToVaultBtn" type="button">Save to vault</button>
+        <button id="downloadBtn" class="secondary" type="button">Download</button>
+      </div>
+    </section>
+
+    <!-- ============ Taught site mappings (Phase 2 follow-up) ============ -->
+    <section id="mappingsView" class="hidden">
+      <h2>Taught site mappings</h2>
+      <p class="hint">
+        Corrections you saved with &ldquo;Teach fields&rdquo;. These hold a hostname, a
+        CSS selector and a field <em>name</em> &mdash; never a value.
+      </p>
+      <div id="mappingsList"></div>
     </section>
 
     <!-- ============ Settings (not secret, always visible) ============ -->

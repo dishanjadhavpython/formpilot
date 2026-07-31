@@ -27,7 +27,12 @@ These are not preferences. Breaking one is a bug, even if the feature works.
    feature seems to need the network, it is the wrong feature.
 5. **No remote code (MV3 requirement).** Third-party libraries get vendored into
    `/vendor` and referenced by local path. Set `corePath`/`workerPath`/`langPath`
-   at local files.
+   at local files. **Vendoring a file is not sufficient** — audit what the
+   library does at runtime. `browser-image-compression`'s default export fetches
+   itself from a CDN inside a blob-URL worker unless `useWebWorker: false`;
+   `tesseract.js` will do the same with its core and traineddata. Grep any new
+   dependency for `importScripts`, `createObjectURL`, `new Worker` and `http`
+   before trusting it, and record findings in `vendor/README.md`.
 6. **Vanilla JS + HTML + CSS.** No frameworks, no bundler, no build step, no
    runtime npm dependencies. It must load unpacked exactly as it sits on disk.
 

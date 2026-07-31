@@ -19,6 +19,7 @@
 // web page cannot read it. It is dropped on Lock and when Chrome closes.
 
 import { createVault, unlockVault, encryptVault } from './lib/crypto.js';
+import { DEFAULT_PRESETS, fitToBand } from './lib/image.js';
 
 // --- Constants --------------------------------------------------------------
 
@@ -63,10 +64,11 @@ function emptyVault() {
 
 const $ = (id) => document.getElementById(id);
 
+// Each state maps to the set of sections visible in it.
 const views = {
-  setup: $('setupView'),
-  locked: $('lockedView'),
-  unlocked: $('unlockedView')
+  setup: [$('setupView')],
+  locked: [$('lockedView')],
+  unlocked: [$('unlockedView'), $('imageView'), $('mappingsView')]
 };
 
 const statusTimers = new WeakMap();
@@ -81,9 +83,10 @@ function setStatus(el, text, kind = '', autoClearMs = 3000) {
 }
 
 function showView(name) {
-  for (const [key, el] of Object.entries(views)) {
-    el.classList.toggle('hidden', key !== name);
+  for (const [key, sections] of Object.entries(views)) {
+    for (const el of sections) el.classList.toggle('hidden', key !== name);
   }
+  if (name === 'unlocked') renderMappings();
 }
 
 function formatBytes(n) {
@@ -483,7 +486,7 @@ $('docFile').addEventListener('change', async () => {
   if (file.size > MAX_DOC_BYTES) {
     setStatus(status,
       `${formatBytes(file.size)} is too large (limit ${formatBytes(MAX_DOC_BYTES)}). ` +
-      'Phase 3 adds a compressor for exactly this.', 'err', 7000);
+      'Use the Image tool below to compress it, then Save to vault.', 'err', 8000);
     input.value = '';
     return;
   }
@@ -608,4 +611,316 @@ $('saveSettingsBtn').addEventListener('click', async () => {
   setStatus(status, 'Saved.', 'ok');
 });
 
+// ============================================================================
+// Image tool (Phase 3)
+// ============================================================================
+
+const CUSTOM_ID = '__custom__';
+let customPresets = [];     // user-saved specs, kept in settings (not personal)
+let lastResult = null;      // the most recent output, ready to save or download
+let previewUrl = null;      // object URL currently shown in the preview
+
+function allPresets() {
+  return [...DEFAULT_PRESETS, ...customPresets];
+}
+
+async function loadPresets() {
+  const { settings } = await chrome.storage.local.get('settings');
+  customPresets = settings?.imagePresets ?? [];
+
+  const select = $('presetSelect');
+  const previous = select.value;
+  select.replaceChildren();
+
+  for (const preset of allPresets()) {
+    const option = document.createElement('option');
+    option.value = preset.id;
+    option.textContent =
+      `${preset.label} - ${preset.maxWidthOrHeight}px, ${preset.minKB}-${preset.maxKB} KB`;
+    select.append(option);
+  }
+  const custom = document.createElement('option');
+  custom.value = CUSTOM_ID;
+  custom.textContent = 'Custom spec...';
+  select.append(custom);
+
+  if (previous) select.value = previous;
+  if (!select.value) select.selectedIndex = 0;
+  syncCustomVisibility();
+}
+
+function syncCustomVisibility() {
+  const isCustom = $('presetSelect').value === CUSTOM_ID;
+  $('customPreset').classList.toggle('hidden', !isCustom);
+  $('cpNote').classList.toggle('hidden', $('cpFormat').value !== 'image/png');
+}
+
+function currentPreset() {
+  const id = $('presetSelect').value;
+  if (id !== CUSTOM_ID) return allPresets().find((p) => p.id === id);
+
+  return {
+    id: 'custom',
+    label: 'Custom',
+    format: $('cpFormat').value,
+    maxWidthOrHeight: Number($('cpDim').value),
+    minKB: Number($('cpMin').value),
+    maxKB: Number($('cpMax').value)
+  };
+}
+
+$('presetSelect').addEventListener('change', syncCustomVisibility);
+$('cpFormat').addEventListener('change', syncCustomVisibility);
+
+$('imageFile').addEventListener('change', () => {
+  $('resizeBtn').disabled = !$('imageFile').files?.length;
+  clearResult();
+});
+
+$('savePresetBtn').addEventListener('click', async () => {
+  const preset = currentPreset();
+  const status = $('imageStatus');
+
+  if (!(preset.maxWidthOrHeight > 0) || !(preset.minKB > 0) || !(preset.maxKB > preset.minKB)) {
+    setStatus(status, 'Check the spec: max edge and sizes must be positive, and min below max.', 'err', 6000);
+    return;
+  }
+
+  const label = prompt('Name this preset:', `${preset.minKB}-${preset.maxKB} KB @ ${preset.maxWidthOrHeight}px`);
+  if (!label) return;
+
+  customPresets.push({ ...preset, id: `custom-${newId().slice(0, 8)}`, label });
+
+  const { settings } = await chrome.storage.local.get('settings');
+  await chrome.storage.local.set({ settings: { ...(settings ?? {}), imagePresets: customPresets } });
+
+  await loadPresets();
+  $('presetSelect').value = customPresets.at(-1).id;
+  syncCustomVisibility();
+  setStatus(status, `Saved preset "${label}".`, 'ok');
+});
+
+function clearResult() {
+  if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = null; }
+  lastResult = null;
+  $('resultBox').classList.add('hidden');
+  $('resultActions').classList.add('hidden');
+}
+
+$('resizeBtn').addEventListener('click', async () => {
+  const file = $('imageFile').files?.[0];
+  const status = $('imageStatus');
+  if (!file) return;
+
+  const preset = currentPreset();
+  if (!preset) { setStatus(status, 'Pick a preset first.', 'err'); return; }
+
+  $('resizeBtn').disabled = true;
+  clearResult();
+  setStatus(status, 'Decoding...', '', 0);
+
+  try {
+    const result = await fitToBand(file, preset, (message) => setStatus(status, message, '', 0));
+
+    if (result.ok) {
+      lastResult = result;
+      showResult(result, preset, false);
+      setStatus(status,
+        `Landed in band: ${formatBytes(result.bytes)} after ${result.attempts} encodes.`, 'ok', 6000);
+    } else if (result.best) {
+      // The band could not be hit. Show the closest attempt and say plainly
+      // that it does not meet the spec, rather than passing it off as a result.
+      lastResult = {
+        blob: result.best.blob,
+        bytes: result.best.blob.size,
+        width: result.best.width,
+        height: result.best.height,
+        quality: result.best.quality,
+        attempts: result.attempts,
+        original: result.original,
+        savedPercent: Math.max(0, Math.round((1 - result.best.blob.size / result.original.bytes) * 100)),
+        filename: `${file.name.replace(/\.[^.]+$/, '')}-closest.jpg`,
+        outOfBand: true
+      };
+      showResult(lastResult, preset, true);
+      setStatus(status, result.message, 'err', 12000);
+    } else {
+      setStatus(status, result.message, 'err', 10000);
+    }
+  } catch (err) {
+    setStatus(status, `Could not process that image: ${err.message}`, 'err', 8000);
+  } finally {
+    $('resizeBtn').disabled = false;
+  }
+});
+
+function showResult(result, preset, outOfBand) {
+  previewUrl = URL.createObjectURL(result.blob);
+  $('resultPreview').src = previewUrl;
+
+  const stats = $('resultStats');
+  stats.replaceChildren();
+
+  const rows = [
+    ['Original', `${formatBytes(result.original.bytes)} · ${result.original.width}x${result.original.height}`],
+    ['Result', `${formatBytes(result.bytes)} · ${result.width}x${result.height}`],
+    ['Target band', `${preset.minKB}-${preset.maxKB} KB @ ${preset.maxWidthOrHeight}px`],
+    ['Quality', result.quality == null ? 'n/a (PNG)' : result.quality.toFixed(2)],
+    ['Encodes tried', String(result.attempts)]
+  ];
+  for (const [term, value] of rows) {
+    const dt = document.createElement('dt'); dt.textContent = term;
+    const dd = document.createElement('dd'); dd.textContent = value;
+    stats.append(dt, dd);
+  }
+
+  const dt = document.createElement('dt');
+  dt.textContent = outOfBand ? 'Status' : 'Saved';
+  const dd = document.createElement('dd');
+  if (outOfBand) {
+    dd.textContent = 'Outside the required band';
+    dd.style.color = 'var(--danger)';
+    dd.style.fontWeight = '700';
+  } else {
+    dd.className = 'saved-badge';
+    dd.textContent = `${result.savedPercent}% smaller`;
+  }
+  stats.append(dt, dd);
+
+  $('resultBar').style.width = `${Math.min(100, result.savedPercent)}%`;
+  $('resultBar').style.background = outOfBand ? 'var(--danger)' : 'var(--brand)';
+
+  $('resultBox').classList.remove('hidden');
+  $('resultActions').classList.remove('hidden');
+}
+
+$('downloadBtn').addEventListener('click', () => {
+  if (!lastResult) return;
+  // A programmatic click on an <a download> - note this is a download, not a
+  // form submission, so it does not run afoul of the never-auto-submit rule.
+  const url = URL.createObjectURL(lastResult.blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = lastResult.filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+$('saveToVaultBtn').addEventListener('click', async () => {
+  if (!lastResult || !vault) return;
+  const status = $('imageStatus');
+
+  if (lastResult.outOfBand &&
+      !confirm('This file is outside the required size band and the portal may reject it. Save it anyway?')) {
+    return;
+  }
+
+  const dataUrl = await blobToDataUrl(lastResult.blob);
+  vault.documents.push({
+    id: newId(),
+    type: $('resultDocType').value,
+    name: lastResult.filename,
+    mime: lastResult.blob.type || 'image/jpeg',
+    dataUrl,
+    bytes: lastResult.blob.size,
+    addedAt: new Date().toISOString()
+  });
+
+  renderDocuments();
+  setDirty(true);
+  setStatus(status, 'Added to the vault. Press "Save vault" to encrypt it to disk.', 'ok', 6000);
+});
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ============================================================================
+// Taught site mappings (reviewing and deleting what Phase 2 learned)
+// ============================================================================
+
+async function renderMappings() {
+  const list = $('mappingsList');
+  const { siteMappings = {} } = await chrome.storage.local.get('siteMappings');
+  const hosts = Object.keys(siteMappings).sort();
+
+  list.replaceChildren();
+
+  if (hosts.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'Nothing taught yet. Use "Teach fields on this site" in the popup when a form fills wrongly.';
+    list.append(empty);
+    return;
+  }
+
+  for (const host of hosts) {
+    const entries = Object.entries(siteMappings[host]);
+
+    const heading = document.createElement('h3');
+    heading.textContent = host;
+    heading.style.marginBottom = '6px';
+
+    const forget = document.createElement('button');
+    forget.type = 'button';
+    forget.className = 'danger tiny';
+    forget.textContent = 'Forget site';
+    forget.style.marginLeft = '10px';
+    forget.addEventListener('click', async () => {
+      if (!confirm(`Forget all ${entries.length} mapping(s) for ${host}?`)) return;
+      const { siteMappings: current = {} } = await chrome.storage.local.get('siteMappings');
+      delete current[host];
+      await chrome.storage.local.set({ siteMappings: current });
+      renderMappings();
+    });
+    heading.append(forget);
+
+    const table = document.createElement('table');
+    table.className = 'maps';
+    const head = document.createElement('tr');
+    for (const label of ['Field', 'Selector', '']) {
+      const th = document.createElement('th');
+      th.textContent = label;
+      head.append(th);
+    }
+    table.append(head);
+
+    for (const [selector, key] of entries) {
+      const row = document.createElement('tr');
+
+      const fieldCell = document.createElement('td');
+      fieldCell.textContent = key.startsWith('custom:') ? key.slice(7) : key;
+
+      const selectorCell = document.createElement('td');
+      const code = document.createElement('code');
+      code.textContent = selector;
+      selectorCell.append(code);
+
+      const actionCell = document.createElement('td');
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'danger tiny';
+      remove.textContent = 'Delete';
+      remove.addEventListener('click', async () => {
+        const { siteMappings: current = {} } = await chrome.storage.local.get('siteMappings');
+        delete current[host]?.[selector];
+        if (current[host] && Object.keys(current[host]).length === 0) delete current[host];
+        await chrome.storage.local.set({ siteMappings: current });
+        renderMappings();
+      });
+      actionCell.append(remove);
+
+      row.append(fieldCell, selectorCell, actionCell);
+      table.append(row);
+    }
+    list.append(heading, table);
+  }
+}
+
+loadPresets();
 boot();
