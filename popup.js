@@ -66,6 +66,9 @@ async function boot() {
   fillBtn.disabled = !unlocked || restricted;
   teachBtn.disabled = !unlocked || restricted;
 
+  // Opening the popup counts as activity: it pushes the idle auto-lock out.
+  if (unlocked) chrome.runtime.sendMessage({ type: 'ACTIVITY' }).catch(() => {});
+
   if (restricted) {
     setStatus('Chrome does not allow extensions to run on this page.', 'warn');
   } else if (!unlocked) {
@@ -95,7 +98,12 @@ async function withContentScript(action) {
 
 async function vaultOrThrow() {
   const { [SESSION_KEY]: vaultData } = await chrome.storage.session.get(SESSION_KEY);
-  if (!vaultData) throw new Error('Vault is locked.');
+  if (!vaultData) {
+    // Most likely the idle timer fired since this popup was last opened.
+    boot();
+    throw new Error('The vault locked itself. Unlock it again to fill.');
+  }
+  chrome.runtime.sendMessage({ type: 'ACTIVITY' }).catch(() => {});
   return vaultData;
 }
 

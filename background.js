@@ -50,8 +50,54 @@ chrome.runtime.onStartup.addListener(async () => {
 // chrome.runtime.sendMessage / chrome.tabs.sendMessage. This is the single entry
 // point for messages aimed at the service worker.
 
+// --- Idle auto-lock ---------------------------------------------------------
+//
+// The vault has to lock itself even when every extension page is closed, so the
+// countdown cannot live in a page. It also cannot live in a variable here - the
+// service worker sleeps and forgets. chrome.alarms survives both: it is
+// persisted by the browser and wakes the worker when it fires.
+//
+// The alarm is (re)armed on unlock and on any sign of activity, so "N minutes"
+// means N minutes of inactivity rather than N minutes since unlocking.
+
+const AUTO_LOCK_ALARM = 'auto-lock';
+const SESSION_KEY = 'vaultData';
+
+async function armAutoLock() {
+  const { [SESSION_KEY]: vaultData } = await chrome.storage.session.get(SESSION_KEY);
+  if (!vaultData) return;                       // already locked, nothing to arm
+
+  const { settings } = await chrome.storage.local.get('settings');
+  const minutes = Number(settings?.autoLockMinutes) || 5;
+
+  await chrome.alarms.clear(AUTO_LOCK_ALARM);
+  await chrome.alarms.create(AUTO_LOCK_ALARM, { delayInMinutes: minutes });
+}
+
+async function lockNow(reason) {
+  await chrome.alarms.clear(AUTO_LOCK_ALARM);
+  // Removing the session copy is the lock. Any open options page notices via
+  // chrome.storage.onChanged and drops its in-memory key to match.
+  await chrome.storage.session.remove(SESSION_KEY);
+  console.log(`[FormPilot] vault locked (${reason})`);
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === AUTO_LOCK_ALARM) lockNow('idle timeout');
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message?.type) {
+    case 'ACTIVITY':
+      // Any interaction pushes the deadline out. Fire-and-forget.
+      armAutoLock();
+      sendResponse({ ok: true });
+      return false;
+
+    case 'LOCK_NOW':
+      lockNow(message.reason ?? 'requested').then(() => sendResponse({ ok: true }));
+      return true;
+
     case 'PING':
       // Used by the popup's button to prove popup <-> worker wiring works.
       sendResponse({

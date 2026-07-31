@@ -21,6 +21,7 @@
 import { createVault, unlockVault, encryptVault } from './lib/crypto.js';
 import { DEFAULT_PRESETS, fitToBand } from './lib/image.js';
 import { recognise, extractFields, terminateOcr } from './lib/ocr.js';
+import { wrapBackup, validateBackup } from './lib/backup.js';
 
 // --- Constants --------------------------------------------------------------
 
@@ -115,6 +116,8 @@ async function publishSession() {
       unlockedAt: Date.now()
     }
   });
+  // Start the idle countdown in the service worker.
+  chrome.runtime.sendMessage({ type: 'ACTIVITY' }).catch(() => {});
 }
 
 async function clearSession() {
@@ -251,7 +254,15 @@ $('unlockPass').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') $('unlockBtn').click();
 });
 
-function lock() {
+/**
+ * Tear down everything in THIS page. Deliberately does not touch
+ * chrome.storage.session, so it is safe to call in response to the session
+ * copy having already been cleared by the service worker's idle alarm.
+ *
+ * Everything below held data derived from your documents, so all of it goes -
+ * "Lock" that leaves an ID card on screen is not a lock.
+ */
+function lockLocally() {
   // Dropping these references is the whole of "locking". The key is
   // non-extractable and unreferenced, so it is gone as far as this page is
   // concerned; the plaintext vault object becomes garbage too.
@@ -260,21 +271,66 @@ function lock() {
   vault = null;
   dirty = false;
 
-  // Revoke the popup's copy too, or "Lock" would be a lie.
-  clearSession();
-
-  // Drop the OCR engine as well: it holds tens of MB of WASM heap, and any
-  // recognised text still in it came off a document of yours.
+  // The OCR engine holds tens of MB of WASM heap, and the text still in it came
+  // off a document of yours.
   terminateOcr();
   clearOcr();
+
+  // The image tool holds a Blob of whatever you last compressed, an object URL,
+  // and a visible preview of it.
+  clearResult();
 
   // Clear the rendered plaintext out of the DOM as well.
   for (const el of document.querySelectorAll('[data-field]')) el.value = '';
   $('customList').replaceChildren();
   $('docList').replaceChildren();
+  $('resultPreview').removeAttribute('src');
+
+  // And the file pickers, which otherwise still name the document you chose.
+  for (const id of ['docFile', 'imageFile', 'ocrFile']) $(id).value = '';
+  $('resizeBtn').disabled = true;
+  $('ocrBtn').disabled = true;
 
   showView('locked');
   $('unlockPass').focus();
+}
+
+/** A user-initiated lock: tear down this page AND revoke the popup's copy. */
+function lock() {
+  lockLocally();
+  clearSession();
+  chrome.runtime.sendMessage({ type: 'LOCK_NOW', reason: 'user' }).catch(() => {});
+}
+
+// The service worker clears the session copy when the idle alarm fires. This is
+// how an open options page finds out and locks itself to match.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'session' || !changes[SESSION_KEY]) return;
+  const stillUnlocked = Boolean(changes[SESSION_KEY].newValue);
+  if (!stillUnlocked && sessionKey) {
+    lockLocally();
+    setStatus($('unlockStatus'), 'Locked automatically after a period of inactivity.', 'warn', 8000);
+  }
+});
+
+// --- Activity tracking ------------------------------------------------------
+//
+// Any interaction pushes the auto-lock deadline out, so "5 minutes" means five
+// minutes of inactivity. Throttled - the alarm only needs re-arming
+// occasionally, not on every keystroke.
+
+let lastActivityPing = 0;
+
+function reportActivity() {
+  if (!sessionKey) return;                      // locked; nothing to keep alive
+  const now = Date.now();
+  if (now - lastActivityPing < 30_000) return;
+  lastActivityPing = now;
+  chrome.runtime.sendMessage({ type: 'ACTIVITY' }).catch(() => {});
+}
+
+for (const event of ['click', 'keydown', 'input']) {
+  document.addEventListener(event, reportActivity, true);
 }
 
 $('lockBtn').addEventListener('click', () => {
@@ -293,8 +349,8 @@ $('resetBtn').addEventListener('click', async () => {
   if (typed !== 'DELETE') return;
 
   await chrome.storage.local.remove(STORAGE_KEY);
+  lockLocally();              // clears the key, the DOM, OCR and image state
   await clearSession();
-  sessionKey = null; kdfParams = null; vault = null; dirty = false;
   showView('setup');
   $('newPass').focus();
 });
@@ -587,6 +643,95 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 // ============================================================================
+// Encrypted backup: export / import (Phase 5)
+// ============================================================================
+//
+// No new cryptography here, deliberately. What sits in chrome.storage.local is
+// already a self-describing encrypted envelope - KDF parameters, salt, IV and
+// ciphertext. Exporting is therefore just writing that envelope to a file, and
+// importing is writing it back. The backup is exactly as strong as the
+// passphrase that produced it, and this code never sees either.
+
+$('exportBtn').addEventListener('click', async () => {
+  const status = $('backupStatus');
+
+  const { [STORAGE_KEY]: record } = await chrome.storage.local.get(STORAGE_KEY);
+  if (!record) {
+    setStatus(status, 'There is no vault to export yet.', 'warn');
+    return;
+  }
+
+  const backup = wrapBackup(record);   // ciphertext + KDF params, unchanged
+
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `formpilot-${stamp}.formpilot-backup`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  setStatus(status, `Exported. It is encrypted — but still keep it somewhere private.`, 'ok', 8000);
+});
+
+$('importFile').addEventListener('change', () => {
+  $('importBtn').disabled = !$('importFile').files?.length;
+  setStatus($('backupStatus'), '');
+});
+
+$('importBtn').addEventListener('click', async () => {
+  const status = $('backupStatus');
+  const file = $('importFile').files?.[0];
+  if (!file) return;
+
+  $('importBtn').disabled = true;
+
+  try {
+    let parsed;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      setStatus(status, 'That file is not valid JSON — is it really a backup?', 'err', 8000);
+      return;
+    }
+
+    const problem = validateBackup(parsed);
+    if (problem) {
+      setStatus(status, problem, 'err', 9000);
+      return;
+    }
+
+    const { [STORAGE_KEY]: existing } = await chrome.storage.local.get(STORAGE_KEY);
+    const warning = existing
+      ? 'This REPLACES the vault currently on this device. Anything in it that is not ' +
+        'in the backup will be lost, and this cannot be undone.\n\n'
+      : '';
+    const stamp = parsed.exportedAt ? `Backup taken ${new Date(parsed.exportedAt).toLocaleString()}.\n\n` : '';
+
+    if (!confirm(`${stamp}${warning}Continue?`)) return;
+
+    await chrome.storage.local.set({ [STORAGE_KEY]: parsed.record });
+
+    // Whatever key this page holds belongs to the OLD vault, so it must go.
+    // The imported vault opens only with the passphrase it was exported under.
+    lockLocally();
+    await clearSession();
+
+    $('importFile').value = '';
+    showView('locked');
+    setStatus($('unlockStatus'),
+      'Backup restored. Unlock with the passphrase that backup was made with.', 'ok', 12000);
+    setStatus(status, 'Imported.', 'ok', 6000);
+  } catch (err) {
+    setStatus(status, `Import failed: ${err.message}`, 'err', 9000);
+  } finally {
+    $('importBtn').disabled = !$('importFile').files?.length;
+  }
+});
+
+// ============================================================================
 // Settings (plain preferences, not secret, stored unencrypted)
 // ============================================================================
 
@@ -614,7 +759,29 @@ $('saveSettingsBtn').addEventListener('click', async () => {
       highlightFills: $('highlight').checked
     }
   });
-  setStatus(status, 'Saved.', 'ok');
+
+  // Re-arm with the new timeout rather than waiting for the old one to expire.
+  chrome.runtime.sendMessage({ type: 'ACTIVITY' }).catch(() => {});
+  setStatus(status, `Saved. Auto-lock is now ${minutes} minute${minutes === 1 ? '' : 's'}.`, 'ok');
+});
+
+// ============================================================================
+// Last-resort error surface
+// ============================================================================
+//
+// A thrown error inside an event handler otherwise fails silently and the page
+// just appears to do nothing. Surfacing it is the difference between "broken"
+// and "broken, and here is why".
+
+function showFatal(message) {
+  const banner = $('fatalError');
+  banner.textContent = `Something went wrong: ${message}. Reload this page; if it persists, check the console.`;
+  banner.classList.remove('hidden');
+}
+
+window.addEventListener('error', (event) => showFatal(event.message));
+window.addEventListener('unhandledrejection', (event) => {
+  showFatal(event.reason?.message ?? String(event.reason));
 });
 
 // ============================================================================
@@ -878,8 +1045,14 @@ function clearOcr() {
   ocrSuggestions = [];
   $('ocrResult')?.classList.add('hidden');
   $('ocrBarWrap')?.classList.add('hidden');
-  const fields = $('ocrFields');
-  if (fields) fields.replaceChildren();
+  $('ocrFields')?.replaceChildren();
+
+  // The recognised text and confidence came off one of your documents - hiding
+  // the panel is not enough, the content has to go too.
+  const raw = $('ocrRaw');
+  if (raw) raw.textContent = '';
+  const confidence = $('ocrConfidence');
+  if (confidence) confidence.replaceChildren();
 }
 
 $('ocrBtn').addEventListener('click', async () => {

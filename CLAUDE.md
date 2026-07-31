@@ -47,11 +47,16 @@ These are not preferences. Breaking one is a bug, even if the feature works.
 - No stored password hash — a failed decrypt *is* the wrong-passphrase signal.
 - Store the minimum: Aadhaar is reduced to its last 4 digits *before* it reaches
   the vault object, not at display time.
+- **Locking means locking.** `lockLocally()` must clear every trace derived from
+  a document — OCR text, image Blobs, object URLs, preview `src`, file inputs —
+  not just the key. Anything new that touches document data belongs in it.
 
 ## Platform gotchas
 
 - **The service worker is ephemeral.** It sleeps and wipes its globals. Keep
   state in `chrome.storage`, not module-level variables in `background.js`.
+  Anything that must survive the worker sleeping (the auto-lock countdown) goes
+  through `chrome.alarms`.
 - **Contexts cannot call each other.** Popup, options, content script and worker
   talk via `chrome.runtime.sendMessage` / `chrome.tabs.sendMessage`.
 - **After setting a field's value, dispatch `input` and `change`** or React/Vue
@@ -80,7 +85,7 @@ These are not preferences. Breaking one is a bug, even if the feature works.
 manifest.json     background.js (service worker)
 popup.html/js     options.html/js   (vault + image tool + OCR)
 content.js        (field detection + fill; injected on demand, not declared)
-lib/              crypto.js, match.js, image.js, ocr.js
+lib/              crypto.js, match.js, image.js, ocr.js, backup.js
 vendor/           third-party libs, local copies only
 icons/
 ```

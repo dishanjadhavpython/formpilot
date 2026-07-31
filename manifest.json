@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Local-first document vault and form autofill. All data stays on your device.",
 
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "alarms"],
   "host_permissions": ["<all_urls>"],
 
   "background": {

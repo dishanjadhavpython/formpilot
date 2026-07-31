@@ -13,7 +13,7 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 | 2 | Autofill engine | ✅ done |
 | 3 | Resize/compress to portal spec | ✅ done |
 | 4 | OCR auto-extract (stretch) | ✅ done |
-| 5 | Polish & reliability | ⬜ |
+| 5 | Polish & reliability | ✅ done |
 
 ---
 
@@ -122,14 +122,38 @@ Apply writes into the visible form, and only "Save vault" encrypts it.
 biggest available accuracy win on phone photos; English only; the name-line
 heuristic is weak on layouts where the name is not in capitals.
 
-## Phase 5 — Polish & reliability ⬜
+## Phase 5 — Polish & reliability ✅
 
-Idle auto-lock (the `autoLockMinutes` setting is already stored and unused).
-Encrypted export/import so data survives a reinstall. Empty and error states.
-README with setup, features, and the privacy line. Self-review for anything that
-could store plaintext or auto-submit.
+**Idle auto-lock.** Driven by `chrome.alarms` in the service worker, not by a
+page — the vault has to lock itself when every extension page is closed, and a
+worker variable would not survive the worker sleeping. Re-armed on activity, so
+"5 minutes" means five minutes of *inactivity*. When it fires it removes the
+session copy; an open options page sees that via `chrome.storage.onChanged` and
+drops its in-memory key to match. Added the `alarms` permission.
+
+**Encrypted export/import** (`lib/backup.js`). No new cryptography: the stored
+record is already a self-describing encrypted envelope, so a backup is that
+envelope in a file. Import validates the shape before writing — a malformed
+record would leave the vault permanently unopenable — then forces a re-unlock
+with the passphrase that backup was made under. The Backup section is visible in
+*every* state, because restoring is what you need right after a reinstall, when
+no vault exists and the page is in setup.
+
+**Error states.** `window.onerror` / `unhandledrejection` surface into a banner;
+a thrown error in a handler otherwise fails silently and the page just looks
+broken.
+
+**Self-review found a real leak.** `lock()` cleared the key and the vault fields
+but left OCR-recognised text in the DOM, the image tool's `lastResult` Blob and
+its live object URL, the preview `<img>` still showing a document, and the file
+inputs still naming what you picked. All of that came off your documents. Split
+into `lockLocally()` (tear down this page, safe to call when the session copy is
+already gone) and `lock()` (that plus revoking the popup's copy).
 
 **Done when:** lock-on-idle works, and you can export, reinstall, import, recover.
+
+**Deferred:** no change-passphrase flow, so a backup is forever tied to the
+passphrase in force when it was taken.
 
 ---
 

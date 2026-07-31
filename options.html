@@ -223,6 +223,8 @@
     </header>
     <p class="tagline">Everything is stored locally on this device, encrypted. No account, no server, works offline.</p>
 
+    <p id="fatalError" class="note danger hidden" role="alert"></p>
+
     <!-- ============ VIEW A: first run, no vault yet ============ -->
     <section id="setupView" class="hidden">
       <h2>Create your vault</h2>
@@ -475,6 +477,37 @@
         CSS selector and a field <em>name</em> &mdash; never a value.
       </p>
       <div id="mappingsList"></div>
+    </section>
+
+    <!-- ============ Backup (Phase 5) - visible in every state, because
+         importing is what you need after a reinstall, when no vault exists ============ -->
+    <section id="backupView">
+      <h2>Backup</h2>
+      <p class="hint">
+        The backup file is the <em>encrypted</em> vault, byte for byte &mdash; the same
+        ciphertext that sits in storage. It can only be opened with the passphrase
+        that was in force when you exported it. Keep it somewhere you control.
+      </p>
+
+      <div class="actions" style="margin-top:0">
+        <button id="exportBtn" class="secondary" type="button">Export encrypted backup</button>
+        <span id="backupStatus" class="status" role="status" aria-live="polite"></span>
+      </div>
+
+      <h3>Restore</h3>
+      <p class="hint">
+        Importing <strong>replaces</strong> the vault on this device. You will need the
+        passphrase that backup was made with &mdash; not your current one, if they differ.
+      </p>
+      <div class="preset-row">
+        <div>
+          <label for="importFile">Backup file</label>
+          <input id="importFile" type="file" accept=".formpilot-backup,application/json,.json">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="importBtn" class="danger" type="button" disabled>Import and replace</button>
+      </div>
     </section>
 
     <!-- ============ Settings (not secret, always visible) ============ -->
