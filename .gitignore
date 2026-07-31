@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Node (only used for tooling; the extension itself has no build step)
+node_modules/
+npm-debug.log*
+
+# Packaged extension + signing key. NEVER commit the .pem - it is the private
+# key that identifies this extension in the Chrome Web Store.
+*.zip
+*.crx
+*.pem
+
+# Local secrets
+.env
+.env.local
+
+# Vault exports (Phase 5 writes encrypted backups - keep them out of git anyway)
+*.formpilot-backup

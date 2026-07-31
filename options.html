@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FormPilot - Options</title>
+  <style>
+    :root {
+      --bg: #f6f8f7;
+      --card: #ffffff;
+      --fg: #14231c;
+      --muted: #5c7268;
+      --brand: #0b6e4f;
+      --brand-dark: #095c42;
+      --line: #dfe7e3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 32px 20px 56px;
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: var(--fg);
+      background: var(--bg);
+    }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    header { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+    header img { width: 36px; height: 36px; border-radius: 8px; }
+    h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.015em; }
+    .tagline { margin: 0 0 24px 48px; font-size: 13px; color: var(--muted); }
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+    h2 { margin: 0 0 4px; font-size: 15px; font-weight: 650; }
+    .hint { margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    input[type="number"] {
+      width: 90px;
+      padding: 7px 9px;
+      font: inherit;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: inherit;
+    }
+    .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+    .check label { margin: 0; font-weight: 500; }
+    button {
+      padding: 8px 16px;
+      font: inherit;
+      font-weight: 600;
+      color: #fff;
+      background: var(--brand);
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+    }
+    button:hover { background: var(--brand-dark); }
+    .actions { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+    #status { font-size: 13px; color: var(--muted); }
+    #status.ok { color: var(--brand); }
+    #status.err { color: #b3261e; }
+    ul.roadmap { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+    ul.roadmap li { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img src="icons/icon128.png" alt="">
+      <h1>FormPilot</h1>
+    </header>
+    <p class="tagline">Everything is stored locally on this device. No account, no server, works offline.</p>
+
+    <section>
+      <h2>Settings</h2>
+      <p class="hint">Saved to <code>chrome.storage.local</code>.</p>
+
+      <label for="autoLock">Auto-lock the vault after (minutes idle)</label>
+      <div class="row">
+        <input id="autoLock" type="number" min="1" max="120" step="1" value="5">
+      </div>
+
+      <div class="check">
+        <input id="highlight" type="checkbox" checked>
+        <label for="highlight">Highlight fields that autofill filled in</label>
+      </div>
+
+      <div class="actions">
+        <button id="saveBtn" type="button">Save settings</button>
+        <span id="status" role="status" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Coming next</h2>
+      <ul class="roadmap">
+        <li>Phase 1 - encrypted vault (passphrase, PBKDF2 &rarr; AES-256-GCM)</li>
+        <li>Phase 2 - autofill engine (content script + field matching)</li>
+        <li>Phase 3 - resize/compress an image to a portal's exact spec</li>
+        <li>Phase 4 - OCR auto-extract from an ID image (stretch)</li>
+        <li>Phase 5 - idle lock, encrypted backup export/import, polish</li>
+      </ul>
+    </section>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
