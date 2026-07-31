@@ -10,9 +10,18 @@ These are not preferences. Breaking one is a bug, even if the feature works.
 
 1. **Never auto-submit a form.** No `form.submit()`, no `.click()` on submit
    buttons, no Enter-key synthesis. The user reviews and submits, always.
-2. **Never store plaintext personal data.** Anything personal reaches
-   `chrome.storage.local` only via `encryptVault()` in `lib/crypto.js`. The only
-   unencrypted key is `settings` (UI preferences — no personal data).
+2. **Never write plaintext personal data to disk.** Anything personal reaches
+   `chrome.storage.local` only via `encryptVault()` in `lib/crypto.js`. Exactly
+   three unencrypted keys exist, and adding a fourth needs a good reason:
+   - `session.vaultData` — decrypted text fields while unlocked, so the popup
+     can fill forms. `chrome.storage.session` is **memory-only, never written to
+     disk**, and pinned to `TRUSTED_CONTEXTS` so content scripts cannot read it.
+     Cleared on Lock and on browser restart. Documents are excluded.
+   - `local.settings` — UI preferences. No personal data.
+   - `local.siteMappings` — `hostname → { cssSelector: vaultFieldName }`. Field
+     *names*, never values. Unencrypted because the popup must read it while the
+     vault may be locked; the hostnames it reveals are already in your browser
+     history.
 3. **Never fill password fields.** Skip `input[type=password]` in autofill.
 4. **No network. Ever.** No `fetch`, no CDN, no analytics, no telemetry. If a
    feature seems to need the network, it is the wrong feature.
@@ -53,7 +62,7 @@ These are not preferences. Breaking one is a bug, even if the feature works.
 ```
 manifest.json     background.js (service worker)
 popup.html/js     options.html/js   (vault + image tool + OCR)
-content.js        (field detection + fill — Phase 2)
+content.js        (field detection + fill; injected on demand, not declared)
 lib/              crypto.js, match.js, image.js, ocr.js
 vendor/           third-party libs, local copies only
 icons/

@@ -11,12 +11,19 @@
 //   * The decrypted vault lives ONLY in the `vault` variable. Everything that
 //     reaches chrome.storage.local goes through encryptVault() first.
 //   * The passphrase itself is never stored anywhere, in any form.
+//
+// One deliberate exception, added in Phase 2: while unlocked we publish the
+// text fields (NOT the documents, NOT the key) to chrome.storage.session so the
+// popup can fill forms. Session storage is held in memory, is never written to
+// disk, and is restricted to trusted extension contexts - a content script on a
+// web page cannot read it. It is dropped on Lock and when Chrome closes.
 
 import { createVault, unlockVault, encryptVault } from './lib/crypto.js';
 
 // --- Constants --------------------------------------------------------------
 
 const STORAGE_KEY = 'vault';          // holds the ciphertext record, nothing else
+const SESSION_KEY = 'vaultData';      // in-memory copy for the popup
 const MIN_PASSPHRASE = 10;
 const MAX_DOC_BYTES = 2 * 1024 * 1024;   // 2 MB per image before encoding
 const QUOTA_BYTES = 10 * 1024 * 1024;    // chrome.storage.local default quota
@@ -89,6 +96,27 @@ function newId() {
   return crypto.randomUUID();
 }
 
+// --- Session cache for the popup --------------------------------------------
+
+/**
+ * Publish just enough for autofill: the text fields and custom fields.
+ * Documents are excluded - the popup never fills file inputs, and images would
+ * bloat the in-memory cache for no benefit.
+ */
+async function publishSession() {
+  await chrome.storage.session.set({
+    [SESSION_KEY]: {
+      fields: vault.fields,
+      customFields: vault.customFields,
+      unlockedAt: Date.now()
+    }
+  });
+}
+
+async function clearSession() {
+  await chrome.storage.session.remove(SESSION_KEY);
+}
+
 // ============================================================================
 // Boot
 // ============================================================================
@@ -144,6 +172,7 @@ $('createBtn').addEventListener('click', async () => {
 
     renderVault();
     showView('unlocked');
+    await publishSession();
     setStatus($('saveStatus'), 'Vault created and unlocked.', 'ok');
   } catch (err) {
     setStatus(status, `Could not create the vault: ${err.message}`, 'err', 6000);
@@ -204,6 +233,7 @@ $('unlockBtn').addEventListener('click', async () => {
 
     renderVault();
     showView('unlocked');
+    await publishSession();
     updateUsage();
   } catch (err) {
     setStatus(status, err.message, 'err', 5000);
@@ -225,6 +255,9 @@ function lock() {
   kdfParams = null;
   vault = null;
   dirty = false;
+
+  // Revoke the popup's copy too, or "Lock" would be a lie.
+  clearSession();
 
   // Clear the rendered plaintext out of the DOM as well.
   for (const el of document.querySelectorAll('[data-field]')) el.value = '';
@@ -251,6 +284,7 @@ $('resetBtn').addEventListener('click', async () => {
   if (typed !== 'DELETE') return;
 
   await chrome.storage.local.remove(STORAGE_KEY);
+  await clearSession();
   sessionKey = null; kdfParams = null; vault = null; dirty = false;
   showView('setup');
   $('newPass').focus();
@@ -513,6 +547,7 @@ $('saveBtn').addEventListener('click', async () => {
     //    and write only the ciphertext record.
     const record = await encryptVault(sessionKey, vault, kdfParams);
     await chrome.storage.local.set({ [STORAGE_KEY]: record });
+    await publishSession();   // keep the popup's copy in step with the edits
 
     renderCustomFields();
     setDirty(false);

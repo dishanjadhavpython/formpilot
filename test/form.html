@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FormPilot test form</title>
+  <style>
+    body { font: 15px/1.5 system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 20px 80px; color: #14231c; }
+    h1 { font-size: 20px; }
+    h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: #5c7268; margin-top: 32px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 5px; }
+    input, select, textarea { width: 100%; padding: 8px 10px; font: inherit; border: 1px solid #dfe7e3; border-radius: 6px; }
+    .audit { position: sticky; top: 0; background: #fff; border: 1px solid #dfe7e3; border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+    .audit h3 { margin: 0 0 8px; font-size: 14px; }
+    .audit ul { margin: 0; padding-left: 18px; font-size: 13px; }
+    .good { color: #0b6e4f; }
+    .bad { color: #b3261e; font-weight: 700; }
+    .score { font-size: 22px; font-weight: 700; }
+    .note { font-size: 13px; color: #5c7268; }
+    button { padding: 10px 18px; font: inherit; font-weight: 600; color: #fff; background: #b3261e; border: none; border-radius: 7px; margin-top: 24px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>FormPilot test form</h1>
+  <p class="note">
+    Open the FormPilot popup and click <strong>Fill this form</strong>. The panel
+    below grades the result live. Fields marked <em>must stay empty</em> are the
+    safety cases &mdash; if any of them turn red, that is a bug, not a preference.
+  </p>
+
+  <div class="audit">
+    <h3>Live audit</h3>
+    <div class="score" id="score">Not filled yet</div>
+    <ul id="violations"></ul>
+  </div>
+
+  <form id="f" onsubmit="event.preventDefault(); alert('The form was submitted. FormPilot must NEVER cause this.');">
+
+    <h2>Standard autocomplete attributes</h2>
+    <label for="a1">Given name</label>
+    <input id="a1" autocomplete="given-name" data-expect="fill">
+
+    <label for="a2">Family name</label>
+    <input id="a2" autocomplete="family-name" data-expect="fill">
+
+    <label for="a3">Email</label>
+    <input id="a3" type="email" autocomplete="email" data-expect="fill">
+
+    <h2>Label / name / placeholder inference</h2>
+    <label for="b1">Date of Birth</label>
+    <input id="b1" type="date" data-expect="fill">
+
+    <label for="b2">Mobile Number</label>
+    <input id="b2" name="mobileNumber" data-expect="fill">
+
+    <label for="b3">Permanent Address</label>
+    <textarea id="b3" name="permanent_address" data-expect="fill"></textarea>
+
+    <label for="b4">PAN Card Number</label>
+    <input id="b4" name="panCardNumber" placeholder="ABCDE1234F" data-expect="fill">
+
+    <label for="b5">Aadhaar Number</label>
+    <input id="b5" name="aadhaar_no" data-expect="fill">
+
+    <label for="b6">Full Name</label>
+    <input id="b6" placeholder="Full Name" data-expect="fill">
+
+    <h2>Date reformatting</h2>
+    <label for="c1">Date of birth (text input wanting dd/mm/yyyy)</label>
+    <input id="c1" name="dob" placeholder="dd/mm/yyyy" data-expect="fill">
+
+    <h2>Must stay empty &mdash; safety cases</h2>
+    <label for="d1">Password</label>
+    <input id="d1" type="password" autocomplete="new-password" data-expect="never">
+
+    <label for="d2">Username</label>
+    <input id="d2" name="username" data-expect="never">
+
+    <label for="d3">Company Name</label>
+    <input id="d3" name="companyName" data-expect="never">
+
+    <label for="d4">OTP</label>
+    <input id="d4" name="otp" data-expect="never">
+
+    <label for="d5">Enter Captcha</label>
+    <input id="d5" name="captcha" data-expect="never">
+
+    <label for="d6" style="color:#b3261e">Honeypot (hidden to humans, bots fill it)</label>
+    <input id="d6" name="fullName" style="position:absolute; left:-9999px" data-expect="never">
+
+    <h2>Must stay untouched &mdash; already has a value</h2>
+    <label for="e1">Email (you typed this yourself)</label>
+    <input id="e1" type="email" autocomplete="email" value="do-not-overwrite@example.com"
+           data-expect="keep" data-original="do-not-overwrite@example.com">
+
+    <button type="submit">Submit (should never be triggered by FormPilot)</button>
+  </form>
+
+  <script>
+    // Grades the page. Deliberately plain and separate from the extension.
+    function audit() {
+      const violations = [];
+      let want = 0, got = 0;
+
+      for (const el of document.querySelectorAll('[data-expect]')) {
+        const expect = el.dataset.expect;
+        const value = (el.value || '').trim();
+        const name = document.querySelector(`label[for="${el.id}"]`)?.textContent.trim() || el.id;
+
+        if (expect === 'fill') {
+          want++;
+          if (value) got++;
+        } else if (expect === 'never' && value) {
+          violations.push(`SAFETY VIOLATION: "${name}" was filled with "${value}"`);
+        } else if (expect === 'keep' && value !== el.dataset.original) {
+          violations.push(`OVERWRITE: "${name}" was changed to "${value}"`);
+        }
+      }
+
+      const score = document.getElementById('score');
+      score.textContent = `Filled ${got} of ${want} fillable fields`;
+      score.className = 'score ' + (violations.length ? 'bad' : 'good');
+
+      const list = document.getElementById('violations');
+      list.replaceChildren();
+      for (const message of violations) {
+        const li = document.createElement('li');
+        li.className = 'bad';
+        li.textContent = message;
+        list.append(li);
+      }
+      if (!violations.length && got) {
+        const li = document.createElement('li');
+        li.className = 'good';
+        li.textContent = 'No safety violations. Nothing forbidden was filled, nothing was overwritten.';
+        list.append(li);
+      }
+    }
+
+    document.addEventListener('input', audit, true);
+    document.addEventListener('change', audit, true);
+    setInterval(audit, 700);
+    audit();
+  </script>
+</body>
+</html>

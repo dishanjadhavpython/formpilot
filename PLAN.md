@@ -10,7 +10,7 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 |---|-------|--------|
 | 0 | Setup & scaffold | ✅ done — `ce1b2ab` |
 | 1 | Encrypted vault | ✅ done — `e745ef4` |
-| 2 | Autofill engine | ⬜ next |
+| 2 | Autofill engine | ✅ done |
 | 3 | Resize/compress to portal spec | ⬜ |
 | 4 | OCR auto-extract (stretch) | ⬜ |
 | 5 | Polish & reliability | ⬜ |
@@ -37,27 +37,36 @@ value is unreadable ciphertext.
 **Deferred out of this phase:** change-passphrase flow; idle auto-lock (Phase 5);
 images capped at 2 MB until the Phase 3 compressor exists.
 
-## Phase 2 — Autofill engine ⬜ ← next
+## Phase 2 — Autofill engine ✅
 
-The core feature. A content script scans the page and infers each field's
-meaning; the popup's "Fill this form" button sends vault data to it.
+The core feature. `content.js` scans the page and infers each field's meaning;
+the popup's "Fill this form" button sends vault data to it.
 
-- Match order: `autocomplete` attribute first, then name / id / label /
-  placeholder / aria-label against an extensible synonyms map (`lib/match.js`).
-- Popup → content script via `chrome.tabs.sendMessage`; fill inputs and dispatch
-  `input` + `change` so React/Vue sites register the value.
-- Outline filled fields; show "filled X of Y"; leave unknown fields alone.
-- **Safety: never auto-submit; never fill password fields.**
-- Let the user save a per-site mapping correction so the next visit is perfect.
+**Resolved design decision.** The popup cannot decrypt anything — the key is
+non-extractable and lives in the options page. On unlock, the options page
+publishes the *decrypted text fields* (not the key, not the documents) to
+`chrome.storage.session`, which is memory-only, never hits disk, and is pinned
+to `TRUSTED_CONTEXTS`. The popup reads that and hands values to the content
+script. Cleared on Lock and on browser restart.
 
-**Open question:** the popup cannot read the vault — the key lives in the options
-page's memory and dies with it. Phase 2 needs to decide how the popup obtains
-decrypted data (prompt for the passphrase in the popup, or hold a session key
-somewhere both contexts can reach). This is the first real design decision left
-in the build.
+- Match order: taught per-site mapping → `autocomplete` attribute → name / id /
+  label / placeholder / aria-label against the synonyms in `lib/match.js`.
+  Ties break toward the longest matched synonym, so "first name" beats "name".
+- `content.js` is injected on demand via `chrome.scripting.executeScript`, not
+  declared in the manifest — it never runs on a page you did not ask it to.
+- Fills via the native prototype value setter (React/Vue ignore plain `.value`
+  assignment), then dispatches `input` + `change`.
+- Outlines filled fields, shows "filled X of Y" in a Shadow-DOM toast.
+- Safety: never submits, never fills passwords, skips hidden honeypots, and
+  never overwrites a field that already has a value.
+- Teach mode: click a field on the page, label it, and the mapping is saved to
+  `local.siteMappings` under that hostname for next time.
 
 **Done when:** on a real signup form, "Fill this form" fills your stored fields,
 highlights them, and does not submit.
+
+**Deferred:** checkbox/radio/file inputs; same-origin iframes; a UI for
+reviewing and deleting saved site mappings.
 
 ## Phase 3 — Resize/compress to portal spec ⬜
 

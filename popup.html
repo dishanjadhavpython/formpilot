@@ -10,11 +10,15 @@
       --muted: #5c7268;
       --brand: #0b6e4f;
       --brand-dark: #095c42;
+      --brand-tint: #eaf4f0;
       --line: #dfe7e3;
+      --warn: #8a6100;
+      --warn-tint: #fff6e0;
+      --danger: #b3261e;
     }
     * { box-sizing: border-box; }
     body {
-      width: 300px;
+      width: 312px;
       margin: 0;
       padding: 16px;
       font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -24,7 +28,20 @@
     header { display: flex; align-items: center; gap: 10px; }
     header img { width: 28px; height: 28px; border-radius: 6px; }
     h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
-    .tagline { margin: 2px 0 14px; font-size: 12px; color: var(--muted); }
+    .badge {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 3px 8px;
+      border-radius: 20px;
+      background: var(--warn-tint);
+      color: var(--warn);
+    }
+    .badge.unlocked { background: var(--brand-tint); color: var(--brand); }
+    .site { margin: 10px 0 14px; font-size: 12px; color: var(--muted); word-break: break-all; }
+
     button {
       width: 100%;
       padding: 9px 12px;
@@ -37,39 +54,72 @@
       cursor: pointer;
     }
     button:hover { background: var(--brand-dark); }
-    button:disabled { opacity: 0.6; cursor: default; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    button.secondary {
+      margin-top: 8px;
+      background: #fff;
+      color: var(--fg);
+      border: 1px solid var(--line);
+    }
+    button.secondary:hover:not(:disabled) { background: var(--brand-tint); border-color: var(--brand); }
+
     #status {
-      margin-top: 12px;
+      margin: 12px 0 0;
       min-height: 18px;
       font-size: 12px;
       color: var(--muted);
       word-break: break-word;
     }
     #status.ok { color: var(--brand); }
-    #status.err { color: #b3261e; }
+    #status.err { color: var(--danger); }
+    #status.warn { color: var(--warn); }
+
+    .locked-note {
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      border-radius: 7px;
+      font-size: 12px;
+      background: var(--warn-tint);
+      color: var(--warn);
+      border: 1px solid #f0e0b8;
+    }
     footer {
       margin-top: 14px;
       padding-top: 10px;
       border-top: 1px solid var(--line);
       font-size: 12px;
+      display: flex;
+      gap: 12px;
     }
-    footer a { color: var(--muted); text-decoration: none; }
+    footer a { color: var(--muted); text-decoration: none; cursor: pointer; }
     footer a:hover { color: var(--brand); text-decoration: underline; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
   <header>
     <img src="icons/icon48.png" alt="">
     <h1>FormPilot</h1>
+    <span id="lockBadge" class="badge">Locked</span>
   </header>
-  <p class="tagline">Local-first vault &amp; autofill. Nothing leaves this device.</p>
 
-  <button id="checkBtn" type="button">Check connection</button>
+  <p class="site" id="site"></p>
+
+  <p class="locked-note hidden" id="lockedNote">
+    The vault is locked. Unlock it in the vault tab and the key stays available
+    until you close Chrome.
+  </p>
+
+  <button id="fillBtn" type="button">Fill this form</button>
+  <button id="teachBtn" class="secondary" type="button">Teach fields on this site</button>
+
   <p id="status" role="status" aria-live="polite"></p>
 
-  <footer><a id="optionsLink" href="#">Open vault &amp; settings &rarr;</a></footer>
+  <footer>
+    <a id="optionsLink">Open vault &rarr;</a>
+    <a id="lockLink" class="hidden">Lock</a>
+  </footer>
 
-  <!-- MV3 forbids inline scripts, so all JS lives in popup.js -->
   <script src="popup.js"></script>
 </body>
 </html>

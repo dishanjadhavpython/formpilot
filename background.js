@@ -6,6 +6,17 @@
 // (In Phase 1 the decrypted vault key is the one exception: it lives only in the
 // page that unlocked it, in memory, and is never persisted.)
 
+// --- Session storage access -------------------------------------------------
+//
+// While the vault is unlocked, the options page publishes the decrypted text
+// fields to chrome.storage.session so the popup can fill forms. That store is
+// memory-only (never written to disk), but by default we must also make sure a
+// content script running inside a web page cannot read it. TRUSTED_CONTEXTS is
+// already the default; setting it explicitly means a future change to the
+// default cannot silently expose the vault.
+chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })
+  .catch((err) => console.warn('[FormPilot] could not set session access level:', err));
+
 // --- Lifecycle ------------------------------------------------------------
 
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -25,8 +36,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
 });
 
-chrome.runtime.onStartup.addListener(() => {
+chrome.runtime.onStartup.addListener(async () => {
   console.log('[FormPilot] browser started, service worker awake');
+  // Session storage should already be empty after a browser restart. Clearing
+  // it anyway costs nothing and means a new session always starts locked.
+  await chrome.storage.session.remove('vaultData');
 });
 
 // --- Messaging ------------------------------------------------------------
