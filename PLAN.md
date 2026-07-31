@@ -12,7 +12,7 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 | 1 | Encrypted vault | ✅ done — `e745ef4` |
 | 2 | Autofill engine | ✅ done |
 | 3 | Resize/compress to portal spec | ✅ done |
-| 4 | OCR auto-extract (stretch) | ⬜ |
+| 4 | OCR auto-extract (stretch) | ✅ done |
 | 5 | Polish & reliability | ⬜ |
 
 ---
@@ -98,14 +98,29 @@ band at the right dimensions.
 3.5x4.5 cm need a crop step, not just a scale); PNG can only be tuned by
 dimension because the encoder ignores the quality argument.
 
-## Phase 4 — OCR auto-extract (stretch) ⬜
+## Phase 4 — OCR auto-extract (stretch) ✅
 
-Vendor `tesseract.js` core + worker + eng traineddata into `/vendor`; set
-`corePath`/`workerPath`/`langPath` to local files. Run in the worker with a
-progress indicator; pre-fill fields with light regex heuristics (PAN pattern,
-DOB, name line); show confidence; let every field be corrected.
+`lib/ocr.js` + the "Read an ID image" section. tesseract.js 7.0.0 with core
+7.0.0 and the English LSTM model, all vendored (~6.8 MB) — see
+`vendor/README.md`, which documents the three CDN fetches that had to be
+overridden, the `workerBlobURL: false` requirement, why only one of six core
+variants is shipped, and the version-pairing trap where npm's `latest` core tag
+is *older* than the one tesseract.js 7 requires.
+
+Required a manifest change: MV3 blocks all WebAssembly without
+`'wasm-unsafe-eval'` in the extension CSP.
+
+Heuristics: PAN (with digit/letter OCR-confusion repair), date of birth in three
+formats with range validation, Aadhaar (masked to the last 4 digits inside the
+extractor), and a name line picked as the most confident all-caps line that is
+not a known label. Every suggestion is editable and individually tickable;
+Apply writes into the visible form, and only "Save vault" encrypts it.
 
 **Done when:** a clear PAN/marksheet image pre-fills a couple of fields.
+
+**Deferred:** no image pre-processing (deskew, threshold, upscale), which is the
+biggest available accuracy win on phone photos; English only; the name-line
+heuristic is weak on layouts where the name is not in capitals.
 
 ## Phase 5 — Polish & reliability ⬜
 

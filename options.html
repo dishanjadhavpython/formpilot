@@ -188,6 +188,20 @@
     .bar { height: 8px; border-radius: 5px; background: #e6ece9; overflow: hidden; margin-top: 10px; grid-column: 1 / -1; }
     .bar span { display: block; height: 100%; background: var(--brand); }
 
+    /* --- OCR --- */
+    pre#ocrRaw {
+      margin: 10px 0 0; padding: 12px; max-height: 260px; overflow: auto;
+      background: #fbfcfc; border: 1px solid var(--line); border-radius: 7px;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word;
+    }
+    .ocr-row { display: grid; grid-template-columns: auto 130px 1fr; gap: 10px; align-items: center; margin-bottom: 10px; }
+    .ocr-row .name { font-size: 13px; font-weight: 600; }
+    .ocr-row .note { grid-column: 2 / -1; font-size: 12px; color: var(--warn); margin: -4px 0 0; }
+    .conf { font-size: 18px; font-weight: 700; }
+    .conf.high { color: var(--brand); }
+    .conf.low { color: var(--warn); }
+    .conf.bad { color: var(--danger); }
+
     /* --- mappings --- */
     table.maps { width: 100%; border-collapse: collapse; font-size: 13px; }
     table.maps th { text-align: left; font-size: 11px; text-transform: uppercase;
@@ -402,6 +416,54 @@
         </select>
         <button id="saveToVaultBtn" type="button">Save to vault</button>
         <button id="downloadBtn" class="secondary" type="button">Download</button>
+      </div>
+    </section>
+
+    <!-- ============ OCR (Phase 4) ============ -->
+    <section id="ocrView" class="hidden">
+      <h2>Read an ID image</h2>
+      <p class="hint">
+        Recognises text on a PAN card, Aadhaar or marksheet and suggests values for
+        your fields. The engine, its WebAssembly core and the English language data
+        all ship inside this extension &mdash; nothing is uploaded, and it works offline.
+        The first run loads about 7&nbsp;MB from local disk and takes a few seconds.
+      </p>
+
+      <div class="preset-row">
+        <div>
+          <label for="ocrFile">ID image</label>
+          <input id="ocrFile" type="file" accept="image/*">
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="ocrBtn" type="button" disabled>Read text</button>
+        <span id="ocrStatus" class="status" role="status" aria-live="polite"></span>
+      </div>
+
+      <div class="bar hidden" id="ocrBarWrap"><span id="ocrBar" style="width:0%"></span></div>
+
+      <div id="ocrResult" class="hidden">
+        <h3>Confidence</h3>
+        <p id="ocrConfidence" class="sub"></p>
+
+        <h3>Suggested fields</h3>
+        <p class="hint">
+          Nothing is saved until you press Apply, and Apply only fills the form
+          above &mdash; you still have to press &ldquo;Save vault&rdquo;. Edit anything
+          that is wrong; OCR misreads are normal.
+        </p>
+        <div id="ocrFields"></div>
+
+        <div class="actions">
+          <button id="ocrApplyBtn" type="button">Apply ticked fields</button>
+          <button id="ocrDiscardBtn" class="secondary" type="button">Discard</button>
+        </div>
+
+        <details style="margin-top:18px">
+          <summary style="cursor:pointer; font-size:13px; color:var(--muted)">Raw recognised text</summary>
+          <pre id="ocrRaw"></pre>
+        </details>
       </div>
     </section>
 

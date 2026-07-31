@@ -20,6 +20,7 @@
 
 import { createVault, unlockVault, encryptVault } from './lib/crypto.js';
 import { DEFAULT_PRESETS, fitToBand } from './lib/image.js';
+import { recognise, extractFields, terminateOcr } from './lib/ocr.js';
 
 // --- Constants --------------------------------------------------------------
 
@@ -68,7 +69,7 @@ const $ = (id) => document.getElementById(id);
 const views = {
   setup: [$('setupView')],
   locked: [$('lockedView')],
-  unlocked: [$('unlockedView'), $('imageView'), $('mappingsView')]
+  unlocked: [$('unlockedView'), $('imageView'), $('ocrView'), $('mappingsView')]
 };
 
 const statusTimers = new WeakMap();
@@ -261,6 +262,11 @@ function lock() {
 
   // Revoke the popup's copy too, or "Lock" would be a lie.
   clearSession();
+
+  // Drop the OCR engine as well: it holds tens of MB of WASM heap, and any
+  // recognised text still in it came off a document of yours.
+  terminateOcr();
+  clearOcr();
 
   // Clear the rendered plaintext out of the DOM as well.
   for (const el of document.querySelectorAll('[data-field]')) el.value = '';
@@ -839,6 +845,178 @@ function blobToDataUrl(blob) {
     reader.readAsDataURL(blob);
   });
 }
+
+// ============================================================================
+// OCR (Phase 4)
+// ============================================================================
+
+// Human-readable names for the field keys the heuristics can produce.
+const OCR_FIELD_LABELS = {
+  fullName: 'Full name',
+  dob: 'Date of birth',
+  pan: 'PAN',
+  aadhaarMasked: 'Aadhaar (masked)'
+};
+
+// tesseract.js reports several phases; only some carry a useful percentage.
+const OCR_PHASES = {
+  'loading tesseract core': 'Loading OCR engine',
+  'initializing tesseract': 'Starting engine',
+  'loading language traineddata': 'Loading English data',
+  'initializing api': 'Preparing',
+  'recognizing text': 'Reading text'
+};
+
+let ocrSuggestions = [];
+
+$('ocrFile').addEventListener('change', () => {
+  $('ocrBtn').disabled = !$('ocrFile').files?.length;
+  clearOcr();
+});
+
+function clearOcr() {
+  ocrSuggestions = [];
+  $('ocrResult')?.classList.add('hidden');
+  $('ocrBarWrap')?.classList.add('hidden');
+  const fields = $('ocrFields');
+  if (fields) fields.replaceChildren();
+}
+
+$('ocrBtn').addEventListener('click', async () => {
+  const file = $('ocrFile').files?.[0];
+  const status = $('ocrStatus');
+  if (!file) return;
+
+  $('ocrBtn').disabled = true;
+  clearOcr();
+  $('ocrBarWrap').classList.remove('hidden');
+  setStatus(status, 'Starting the OCR engine...', '', 0);
+
+  try {
+    const result = await recognise(file, (message) => {
+      const phase = OCR_PHASES[message.status] ?? message.status;
+      const percent = Math.round((message.progress ?? 0) * 100);
+      $('ocrBar').style.width = `${percent}%`;
+      setStatus(status, `${phase}... ${percent}%`, '', 0);
+    });
+
+    $('ocrBar').style.width = '100%';
+    ocrSuggestions = extractFields(result);
+    renderOcrResult(result);
+
+    if (ocrSuggestions.length === 0) {
+      setStatus(status,
+        'Text was read, but nothing matched a known field pattern. Check the raw text below.', 'warn', 9000);
+    } else {
+      setStatus(status, `Found ${ocrSuggestions.length} candidate field(s). Review before applying.`, 'ok', 8000);
+    }
+  } catch (err) {
+    setStatus(status, `OCR failed: ${err.message}`, 'err', 12000);
+    $('ocrBarWrap').classList.add('hidden');
+  } finally {
+    $('ocrBtn').disabled = false;
+  }
+});
+
+function renderOcrResult(result) {
+  // Overall confidence, stated plainly rather than dressed up.
+  const confidence = Math.round(result.confidence);
+  const el = $('ocrConfidence');
+  el.replaceChildren();
+
+  const score = document.createElement('span');
+  score.className = `conf ${confidence >= 80 ? 'high' : confidence >= 60 ? 'low' : 'bad'}`;
+  score.textContent = `${confidence}%`;
+
+  const caption = document.createElement('span');
+  caption.textContent = confidence >= 80
+    ? ' — good. Still check every value.'
+    : confidence >= 60
+      ? ' — mediocre. Expect misreads; a sharper, straighter photo helps.'
+      : ' — poor. Treat every suggestion as a guess.';
+
+  el.append(score, caption);
+
+  $('ocrRaw').textContent = result.text.trim() || '(nothing recognised)';
+
+  const list = $('ocrFields');
+  list.replaceChildren();
+
+  if (ocrSuggestions.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'No recognisable PAN, date, Aadhaar or name line found.';
+    list.append(empty);
+    return;
+  }
+
+  for (const suggestion of ocrSuggestions) {
+    const row = document.createElement('div');
+    row.className = 'ocr-row';
+
+    const tick = document.createElement('input');
+    tick.type = 'checkbox';
+    tick.checked = true;
+    tick.id = `ocr-${suggestion.key}`;
+    suggestion.checkbox = tick;
+
+    const name = document.createElement('label');
+    name.className = 'name';
+    name.htmlFor = tick.id;
+    name.textContent = OCR_FIELD_LABELS[suggestion.key] ?? suggestion.key;
+    name.style.margin = '0';
+
+    // Editable, because "let me edit every field before saving" is the point.
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = suggestion.value;
+    input.autocomplete = 'off';
+    input.addEventListener('input', () => { suggestion.value = input.value; });
+
+    row.append(tick, name, input);
+    list.append(row);
+
+    if (suggestion.note) {
+      const note = document.createElement('p');
+      note.className = 'note';
+      note.textContent = suggestion.note;
+      row.append(note);
+    }
+  }
+}
+
+$('ocrApplyBtn').addEventListener('click', () => {
+  const status = $('ocrStatus');
+  let applied = 0;
+
+  for (const suggestion of ocrSuggestions) {
+    if (!suggestion.checkbox?.checked) continue;
+
+    // Write into the visible form, not straight into the vault: the user still
+    // reviews the whole record and presses "Save vault" to encrypt it.
+    const field = document.querySelector(`[data-field="${suggestion.key}"]`);
+    if (!field) continue;
+
+    field.value = suggestion.key === 'aadhaarMasked' ? maskAadhaar(suggestion.value) : suggestion.value;
+    applied++;
+  }
+
+  if (applied === 0) {
+    setStatus(status, 'Nothing ticked.', 'warn');
+    return;
+  }
+
+  setDirty(true);
+  setStatus(status, `Applied ${applied} field(s) to the form above. Press "Save vault" to encrypt them.`, 'ok', 9000);
+  $('unlockedView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+$('ocrDiscardBtn').addEventListener('click', () => {
+  clearOcr();
+  $('ocrFile').value = '';
+  $('ocrBtn').disabled = true;
+  setStatus($('ocrStatus'), 'Discarded.', '', 2500);
+});
 
 // ============================================================================
 // Taught site mappings (reviewing and deleting what Phase 2 learned)

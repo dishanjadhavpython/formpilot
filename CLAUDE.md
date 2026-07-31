@@ -56,11 +56,23 @@ These are not preferences. Breaking one is a bug, even if the feature works.
   talk via `chrome.runtime.sendMessage` / `chrome.tabs.sendMessage`.
 - **After setting a field's value, dispatch `input` and `change`** or React/Vue
   sites ignore the fill.
-- **No inline `<script>`** — MV3 CSP forbids it. External files only.
+- **No inline `<script>`** — MV3 CSP forbids it. External files only. The
+  extension CSP additionally carries `'wasm-unsafe-eval'`, required for the OCR
+  engine's WebAssembly; it does not permit `eval()` or remote code.
 - **Never `innerHTML` with vault data.** Extension pages are privileged; use
   `textContent` and `createElement`.
 - `chrome.storage.local` is ~10 MB. Images are the only thing that will ever
   threaten that.
+
+## OCR
+
+- Recognition is on-device and must stay that way. `lib/ocr.js` overrides
+  `workerPath`, `corePath` and `langPath`, and sets `workerBlobURL: false`.
+  Losing any one of those silently reintroduces a CDN fetch.
+- OCR output is a *suggestion*, never a save. It lands in the visible form for
+  review; only "Save vault" encrypts it.
+- Aadhaar is masked to its last four digits inside the extractor, before the
+  value is ever returned.
 
 ## Layout
 
