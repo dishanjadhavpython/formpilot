@@ -3,225 +3,17 @@
 <head>
   <meta charset="utf-8">
   <title>FormPilot - Vault</title>
-  <style>
-    :root {
-      --bg: #f6f8f7;
-      --card: #ffffff;
-      --fg: #14231c;
-      --muted: #5c7268;
-      --brand: #0b6e4f;
-      --brand-dark: #095c42;
-      --brand-tint: #eaf4f0;
-      --line: #dfe7e3;
-      --danger: #b3261e;
-      --danger-tint: #fdecea;
-      --warn: #8a6100;
-      --warn-tint: #fff6e0;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 32px 20px 64px;
-      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      color: var(--fg);
-      background: var(--bg);
-    }
-    .wrap { max-width: 720px; margin: 0 auto; }
-
-    header { display: flex; align-items: center; gap: 12px; }
-    header img { width: 36px; height: 36px; border-radius: 8px; }
-    h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.015em; }
-    .tagline { margin: 4px 0 24px 48px; font-size: 13px; color: var(--muted); }
-
-    section {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 20px;
-      margin-bottom: 16px;
-    }
-    section > h2 {
-      margin: 0 0 4px;
-      font-size: 15px;
-      font-weight: 650;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .hint { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
-    .hint:last-child { margin-bottom: 0; }
-
-    h3 {
-      margin: 24px 0 10px;
-      font-size: 13px;
-      font-weight: 650;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--muted);
-    }
-    h3:first-of-type { margin-top: 4px; }
-
-    /* --- form controls --- */
-    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-    input[type="text"], input[type="password"], input[type="email"],
-    input[type="tel"], input[type="date"], input[type="number"], select, textarea {
-      width: 100%;
-      padding: 8px 10px;
-      font: inherit;
-      color: inherit;
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-    }
-    input:focus, select:focus, textarea:focus {
-      outline: 2px solid var(--brand);
-      outline-offset: -1px;
-      border-color: var(--brand);
-    }
-    textarea { resize: vertical; min-height: 64px; }
-    input[type="number"] { width: 90px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .grid .full { grid-column: 1 / -1; }
-    .field { margin-bottom: 0; }
-    .sub { margin: 5px 0 0; font-size: 12px; color: var(--muted); }
-    .sub.warn { color: var(--warn); }
-
-    button {
-      padding: 8px 16px;
-      font: inherit;
-      font-weight: 600;
-      color: #fff;
-      background: var(--brand);
-      border: none;
-      border-radius: 7px;
-      cursor: pointer;
-    }
-    button:hover { background: var(--brand-dark); }
-    button:disabled { opacity: 0.55; cursor: default; }
-    button.secondary {
-      background: #fff;
-      color: var(--fg);
-      border: 1px solid var(--line);
-    }
-    button.secondary:hover { background: var(--brand-tint); border-color: var(--brand); }
-    button.danger { background: #fff; color: var(--danger); border: 1px solid #f0c8c5; }
-    button.danger:hover { background: var(--danger-tint); }
-    button.tiny { padding: 4px 10px; font-size: 12px; }
-    .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
-    .spacer { flex: 1; }
-
-    /* --- status + badges --- */
-    .status { font-size: 13px; color: var(--muted); }
-    .status.ok { color: var(--brand); }
-    .status.err { color: var(--danger); }
-    .badge {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      padding: 3px 8px;
-      border-radius: 20px;
-    }
-    .badge.locked { background: var(--warn-tint); color: var(--warn); }
-    .badge.unlocked { background: var(--brand-tint); color: var(--brand); }
-    .note {
-      padding: 10px 12px;
-      border-radius: 7px;
-      font-size: 13px;
-      background: var(--warn-tint);
-      color: var(--warn);
-      border: 1px solid #f0e0b8;
-    }
-    .note.danger { background: var(--danger-tint); color: var(--danger); border-color: #f0c8c5; }
-
-    /* --- custom fields --- */
-    .custom-row { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px; margin-bottom: 10px; }
-    .empty {
-      padding: 14px;
-      border: 1px dashed var(--line);
-      border-radius: 8px;
-      font-size: 13px;
-      color: var(--muted);
-      text-align: center;
-    }
-
-    /* --- documents --- */
-    .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-    .doc {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      overflow: hidden;
-      background: #fbfcfc;
-      display: flex;
-      flex-direction: column;
-    }
-    .doc .thumb {
-      height: 110px;
-      background: #eef2f0 center / contain no-repeat;
-      border-bottom: 1px solid var(--line);
-    }
-    .doc .meta { padding: 8px 10px; font-size: 12px; }
-    .doc .meta strong { display: block; font-size: 13px; margin-bottom: 2px; word-break: break-word; }
-    .doc .meta span { color: var(--muted); }
-    .doc .doc-actions { display: flex; gap: 6px; padding: 0 10px 10px; }
-    .add-doc { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 14px; }
-    .add-doc > div { flex: 0 0 auto; }
-    .add-doc select { width: auto; min-width: 150px; }
-    input[type="file"] { font-size: 13px; }
-
-    .usage { font-size: 12px; color: var(--muted); margin-top: 14px; }
-    .hidden { display: none !important; }
-
-    /* --- image tool --- */
-    .preset-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
-    .preset-row > div { flex: 1 1 220px; }
-    .custom-preset { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px;
-                     padding: 14px; border: 1px dashed var(--line); border-radius: 8px; }
-    .custom-preset .wide { grid-column: 1 / -1; }
-    .result { display: grid; grid-template-columns: 180px 1fr; gap: 18px; margin-top: 18px;
-              padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfc; }
-    .result img { width: 100%; border-radius: 6px; border: 1px solid var(--line); background: #fff; display: block; }
-    .stats { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13px; align-self: start; }
-    .stats dt { color: var(--muted); }
-    .stats dd { margin: 0; font-variant-numeric: tabular-nums; }
-    .saved-badge { font-size: 20px; font-weight: 700; color: var(--brand); }
-    .bar { height: 8px; border-radius: 5px; background: #e6ece9; overflow: hidden; margin-top: 10px; grid-column: 1 / -1; }
-    .bar span { display: block; height: 100%; background: var(--brand); }
-
-    /* --- OCR --- */
-    pre#ocrRaw {
-      margin: 10px 0 0; padding: 12px; max-height: 260px; overflow: auto;
-      background: #fbfcfc; border: 1px solid var(--line); border-radius: 7px;
-      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word;
-    }
-    .ocr-row { display: grid; grid-template-columns: auto 130px 1fr; gap: 10px; align-items: center; margin-bottom: 10px; }
-    .ocr-row .name { font-size: 13px; font-weight: 600; }
-    .ocr-row .note { grid-column: 2 / -1; font-size: 12px; color: var(--warn); margin: -4px 0 0; }
-    .conf { font-size: 18px; font-weight: 700; }
-    .conf.high { color: var(--brand); }
-    .conf.low { color: var(--warn); }
-    .conf.bad { color: var(--danger); }
-
-    /* --- mappings --- */
-    table.maps { width: 100%; border-collapse: collapse; font-size: 13px; }
-    table.maps th { text-align: left; font-size: 11px; text-transform: uppercase;
-                    letter-spacing: .04em; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
-    table.maps td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-    table.maps code { font-size: 11px; word-break: break-all; }
-    table.maps tr:last-child td { border-bottom: none; }
-    code { font-size: 12px; background: var(--brand-tint); padding: 1px 5px; border-radius: 4px; }
-    ul.roadmap { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
-    ul.roadmap li { margin-bottom: 4px; }
-    ul.roadmap li.done { color: var(--brand); }
-  </style>
+  <link rel="stylesheet" href="styles/one-ui.css">
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <img src="icons/icon128.png" alt="">
-      <h1>FormPilot</h1>
+    <header class="app-title">
+      <div class="app-title__row">
+        <img src="icons/icon128.png" alt="">
+        <h1>FormPilot</h1>
+      </div>
+      <p class="tagline">Everything is stored locally on this device, encrypted. No account, no server, works offline.</p>
     </header>
-    <p class="tagline">Everything is stored locally on this device, encrypted. No account, no server, works offline.</p>
 
     <p id="fatalError" class="note danger hidden" role="alert"></p>
 
@@ -234,14 +26,14 @@
         <strong>nobody, including this extension, can recover your data if you forget it</strong>.
       </p>
 
-      <div class="grid">
-        <div class="field">
+      <div class="stack">
+        <div class="field-group">
           <label for="newPass">Passphrase</label>
           <input id="newPass" type="password" autocomplete="off" spellcheck="false"
                  placeholder="At least 10 characters">
           <p class="sub" id="strengthHint">Longer is stronger. A few random words beats one clever word.</p>
         </div>
-        <div class="field">
+        <div class="field-group">
           <label for="confirmPass">Confirm passphrase</label>
           <input id="confirmPass" type="password" autocomplete="off" spellcheck="false"
                  placeholder="Type it again">
@@ -249,8 +41,11 @@
       </div>
 
       <div class="actions">
-        <button id="createBtn" type="button">Create encrypted vault</button>
         <span id="setupStatus" class="status" role="status" aria-live="polite"></span>
+      </div>
+
+      <div class="bottom-bar">
+        <button id="createBtn" class="btn btn--primary" type="button">Create encrypted vault</button>
       </div>
     </section>
 
@@ -259,57 +54,60 @@
       <h2>Vault locked <span class="badge locked">Locked</span></h2>
       <p class="hint">Enter your passphrase to decrypt the vault for this session.</p>
 
-      <div style="max-width: 340px">
+      <div class="field-group u-narrow">
         <label for="unlockPass">Passphrase</label>
         <input id="unlockPass" type="password" autocomplete="off" spellcheck="false">
       </div>
 
       <div class="actions">
-        <button id="unlockBtn" type="button">Unlock</button>
         <span id="unlockStatus" class="status" role="status" aria-live="polite"></span>
         <span class="spacer"></span>
         <button id="resetBtn" class="danger tiny" type="button">Forgot passphrase?</button>
+      </div>
+
+      <div class="bottom-bar">
+        <button id="unlockBtn" class="btn btn--primary" type="button">Unlock</button>
       </div>
     </section>
 
     <!-- ============ VIEW C: unlocked, the editor ============ -->
     <section id="unlockedView" class="hidden">
       <h2>Your details <span class="badge unlocked">Unlocked</span></h2>
-      <p class="hint">Autofill (Phase 2) will pull from these. Nothing is written to disk until you press Save.</p>
+      <p class="hint">Autofill pulls from these. Nothing is written to disk until you press Save.</p>
 
       <h3>Personal fields</h3>
       <div class="grid">
-        <div class="field">
+        <div class="field-group full">
           <label for="f-fullName">Full name</label>
           <input id="f-fullName" type="text" data-field="fullName" autocomplete="off">
         </div>
-        <div class="field">
+        <div class="field-group">
           <label for="f-dob">Date of birth</label>
           <input id="f-dob" type="date" data-field="dob" autocomplete="off">
         </div>
-        <div class="field">
-          <label for="f-email">Email</label>
-          <input id="f-email" type="email" data-field="email" autocomplete="off">
-        </div>
-        <div class="field">
+        <div class="field-group">
           <label for="f-phone">Phone</label>
           <input id="f-phone" type="tel" data-field="phone" autocomplete="off">
         </div>
-        <div class="field full">
+        <div class="field-group full">
+          <label for="f-email">Email</label>
+          <input id="f-email" type="email" data-field="email" autocomplete="off">
+        </div>
+        <div class="field-group full">
           <label for="f-address">Address</label>
           <textarea id="f-address" data-field="address" autocomplete="off"></textarea>
         </div>
-        <div class="field">
+        <div class="field-group">
           <label for="f-pan">PAN</label>
           <input id="f-pan" type="text" data-field="pan" autocomplete="off" spellcheck="false"
-                 placeholder="ABCDE1234F" maxlength="10" style="text-transform: uppercase">
+                 class="u-upper" placeholder="ABCDE1234F" maxlength="10">
           <p class="sub" id="panHint">10 characters: 5 letters, 4 digits, 1 letter.</p>
         </div>
-        <div class="field">
+        <div class="field-group">
           <label for="f-aadhaarMasked">Aadhaar (masked)</label>
           <input id="f-aadhaarMasked" type="text" data-field="aadhaarMasked" autocomplete="off"
-                 spellcheck="false" placeholder="Last 4 digits, e.g. 1234">
-          <p class="sub warn">Only the last 4 digits are ever stored. Paste the full number and it will be masked on the spot.</p>
+                 spellcheck="false" placeholder="Last 4 digits">
+          <p class="sub warn">Only the last 4 digits are ever stored.</p>
         </div>
       </div>
 
@@ -336,15 +134,18 @@
           <input id="docFile" type="file" accept="image/*">
         </div>
       </div>
-      <div id="docStatus" class="status" style="margin-bottom: 14px"></div>
+      <p id="docStatus" class="status u-mb-4"></p>
       <div id="docList"></div>
 
       <div class="actions">
-        <button id="saveBtn" type="button">Save vault</button>
-        <button id="lockBtn" class="secondary" type="button">Lock</button>
         <span id="saveStatus" class="status" role="status" aria-live="polite"></span>
       </div>
       <p class="usage" id="usage"></p>
+
+      <div class="bottom-bar">
+        <button id="lockBtn" class="btn btn--tonal btn--auto" type="button">Lock</button>
+        <button id="saveBtn" class="btn btn--primary" type="button">Save vault</button>
+      </div>
     </section>
 
     <!-- ============ Image tool (Phase 3) ============ -->
@@ -357,19 +158,19 @@
       </p>
 
       <div class="preset-row">
-        <div>
+        <div class="field-group">
           <label for="presetSelect">Preset</label>
           <select id="presetSelect"></select>
         </div>
-        <div>
+        <div class="field-group">
           <label for="imageFile">Image</label>
           <input id="imageFile" type="file" accept="image/*">
         </div>
       </div>
 
       <div id="customPreset" class="custom-preset hidden">
-        <div class="wide"><strong style="font-size:13px">Custom spec</strong></div>
-        <div>
+        <div class="wide"><strong>Custom spec</strong></div>
+        <div class="field-group">
           <label for="cpFormat">Format</label>
           <select id="cpFormat">
             <option value="image/jpeg">JPEG</option>
@@ -377,26 +178,26 @@
             <option value="image/webp">WebP</option>
           </select>
         </div>
-        <div>
+        <div class="field-group">
           <label for="cpDim">Max edge (px)</label>
           <input id="cpDim" type="number" min="16" max="8000" step="1" value="600">
         </div>
-        <div>
+        <div class="field-group">
           <label for="cpMin">Min (KB)</label>
           <input id="cpMin" type="number" min="1" max="20000" step="1" value="10">
         </div>
-        <div>
+        <div class="field-group">
           <label for="cpMax">Max (KB)</label>
           <input id="cpMax" type="number" min="2" max="20000" step="1" value="200">
         </div>
         <div class="wide">
           <button id="savePresetBtn" class="secondary tiny" type="button">Save as a preset</button>
-          <span class="sub" id="cpNote">PNG ignores quality &mdash; only the dimension can be tuned.</span>
+          <p class="sub" id="cpNote">PNG ignores quality &mdash; only the dimension can be tuned.</p>
         </div>
       </div>
 
       <div class="actions">
-        <button id="resizeBtn" type="button" disabled>Resize to spec</button>
+        <button id="resizeBtn" class="btn btn--primary" type="button" disabled>Resize to spec</button>
         <span id="imageStatus" class="status" role="status" aria-live="polite"></span>
       </div>
 
@@ -407,7 +208,7 @@
       </div>
 
       <div class="actions hidden" id="resultActions">
-        <select id="resultDocType" style="width:auto">
+        <select id="resultDocType" class="u-auto">
           <option value="photo">Passport photo</option>
           <option value="signature">Signature</option>
           <option value="pan">PAN card</option>
@@ -416,7 +217,7 @@
           <option value="idProof">Other ID proof</option>
           <option value="other">Other</option>
         </select>
-        <button id="saveToVaultBtn" type="button">Save to vault</button>
+        <button id="saveToVaultBtn" class="btn btn--primary" type="button">Save to vault</button>
         <button id="downloadBtn" class="secondary" type="button">Download</button>
       </div>
     </section>
@@ -431,15 +232,13 @@
         The first run loads about 7&nbsp;MB from local disk and takes a few seconds.
       </p>
 
-      <div class="preset-row">
-        <div>
-          <label for="ocrFile">ID image</label>
-          <input id="ocrFile" type="file" accept="image/*">
-        </div>
+      <div class="field-group">
+        <label for="ocrFile">ID image</label>
+        <input id="ocrFile" type="file" accept="image/*">
       </div>
 
       <div class="actions">
-        <button id="ocrBtn" type="button" disabled>Read text</button>
+        <button id="ocrBtn" class="btn btn--primary" type="button" disabled>Read text</button>
         <span id="ocrStatus" class="status" role="status" aria-live="polite"></span>
       </div>
 
@@ -458,13 +257,13 @@
         <div id="ocrFields"></div>
 
         <div class="actions">
-          <button id="ocrApplyBtn" type="button">Apply ticked fields</button>
+          <button id="ocrApplyBtn" class="btn btn--primary" type="button">Apply ticked fields</button>
           <button id="ocrDiscardBtn" class="secondary" type="button">Discard</button>
         </div>
 
-        <details style="margin-top:18px">
-          <summary style="cursor:pointer; font-size:13px; color:var(--muted)">Raw recognised text</summary>
-          <pre id="ocrRaw"></pre>
+        <details>
+          <summary>Raw recognised text</summary>
+          <pre id="ocrRaw" class="scroll-fade"></pre>
         </details>
       </div>
     </section>
@@ -489,7 +288,7 @@
         that was in force when you exported it. Keep it somewhere you control.
       </p>
 
-      <div class="actions" style="margin-top:0">
+      <div class="actions u-mt-0">
         <button id="exportBtn" class="secondary" type="button">Export encrypted backup</button>
         <span id="backupStatus" class="status" role="status" aria-live="polite"></span>
       </div>
@@ -499,11 +298,9 @@
         Importing <strong>replaces</strong> the vault on this device. You will need the
         passphrase that backup was made with &mdash; not your current one, if they differ.
       </p>
-      <div class="preset-row">
-        <div>
-          <label for="importFile">Backup file</label>
-          <input id="importFile" type="file" accept=".formpilot-backup,application/json,.json">
-        </div>
+      <div class="field-group">
+        <label for="importFile">Backup file</label>
+        <input id="importFile" type="file" accept=".formpilot-backup,application/json,.json">
       </div>
       <div class="actions">
         <button id="importBtn" class="danger" type="button" disabled>Import and replace</button>
@@ -515,16 +312,18 @@
       <h2>Settings</h2>
       <p class="hint">Preferences only &mdash; no personal data. Stored unencrypted in <code>chrome.storage.local</code>.</p>
 
-      <label for="autoLock">Auto-lock the vault after (minutes idle)</label>
-      <input id="autoLock" type="number" min="1" max="120" step="1" value="5">
-      <p class="sub">Wired up in Phase 5. The vault already locks whenever you close this tab.</p>
-
-      <div class="check" style="display:flex; align-items:center; gap:8px; margin-top:14px">
-        <input id="highlight" type="checkbox" checked>
-        <label for="highlight" style="margin:0; font-weight:500">Highlight fields that autofill fills in</label>
+      <div class="field-group">
+        <label for="autoLock">Auto-lock the vault after (minutes idle)</label>
+        <input id="autoLock" type="number" min="1" max="120" step="1" value="5">
+        <p class="sub">The vault also locks whenever you close the browser.</p>
       </div>
 
-      <div class="actions" style="margin-top: 14px">
+      <div class="check">
+        <label for="highlight">Highlight fields that autofill fills in</label>
+        <input id="highlight" type="checkbox" checked>
+      </div>
+
+      <div class="actions">
         <button id="saveSettingsBtn" class="secondary" type="button">Save settings</button>
         <span id="settingsStatus" class="status" role="status" aria-live="polite"></span>
       </div>
@@ -535,10 +334,10 @@
       <ul class="roadmap">
         <li class="done">Phase 0 &mdash; scaffold &#10003;</li>
         <li class="done">Phase 1 &mdash; encrypted vault &#10003;</li>
-        <li>Phase 2 &mdash; autofill engine (content script + field matching)</li>
-        <li>Phase 3 &mdash; resize/compress an image to a portal's exact spec</li>
-        <li>Phase 4 &mdash; OCR auto-extract from an ID image (stretch)</li>
-        <li>Phase 5 &mdash; idle lock, encrypted backup export/import, polish</li>
+        <li class="done">Phase 2 &mdash; autofill engine &#10003;</li>
+        <li class="done">Phase 3 &mdash; resize to portal spec &#10003;</li>
+        <li class="done">Phase 4 &mdash; OCR auto-extract &#10003;</li>
+        <li class="done">Phase 5 &mdash; idle lock, backup, polish &#10003;</li>
       </ul>
     </section>
   </div>

@@ -1,0 +1,643 @@
+/* ==========================================================================
+   FormPilot — One UI 8.5–inspired design system
+   See DESIGN.md. Every visual value lives here as a custom property; nothing
+   else in the extension hard-codes a colour, radius, spacing or duration.
+
+   Two groups of selectors live below:
+     1. Component classes  (.btn, .card, .bottom-bar, .field, .switch, ...)
+     2. Runtime classes    (.status, .empty, .doc, .maps, .conf, .sub, ...)
+        These are written by JavaScript at runtime — options.js builds document
+        cards, mapping tables and OCR rows with them — so they are styled here
+        rather than renamed. Renaming any of them would break behaviour.
+   ========================================================================== */
+
+/* ---------- 1. Tokens ---------------------------------------------------- */
+
+:root {
+  /* Light */
+  --bg:#F4F5F7;            --surface:#FFFFFF;        --surface-2:#FBFBFD;
+  --glass-bg:rgba(255,255,255,0.72); --glass-border:rgba(255,255,255,0.55);
+  --text:#17181C;          --text-2:#63676E;         --text-3:#9AA0A8;
+  --accent:#1B6FF3;        --accent-press:#135FDB;   --accent-soft:rgba(27,111,243,0.12);
+  --success:#1DAA61;       --danger:#E5484D;         --divider:rgba(0,0,0,0.06);
+  --warn:#B26C00;          --warn-soft:rgba(178,108,0,0.12);
+  --danger-soft:rgba(229,72,77,0.12);
+  --shadow:0 8px 24px rgba(20,23,28,0.10);
+  --shadow-soft:0 2px 10px rgba(20,23,28,0.06);
+
+  /* Radius */
+  --r-pill:999px; --r-xl:28px; --r-lg:22px; --r-md:16px; --r-sm:12px;
+
+  /* Spacing (4pt base) */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px; --s10:40px;
+
+  /* Type */
+  --t-display:700 28px/1.2 var(--font);
+  --t-title:700 22px/1.25 var(--font);
+  --t-section:600 16px/1.3 var(--font);
+  --t-body:450 15px/1.5 var(--font);
+  --t-label:500 14px/1.4 var(--font);
+  --t-caption:450 13px/1.4 var(--font);
+
+  /* Motion */
+  --ease:cubic-bezier(0.22,0.61,0.36,1); --dur:220ms;
+  --font:"Inter","SamsungOne","system-ui",-apple-system,"Segoe UI",Roboto,sans-serif;
+
+  /* Control sizing */
+  --control-h:52px; --control-h-sm:40px; --row-h:56px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#0A0B0D;          --surface:#17181B;        --surface-2:#1E2024;
+    --glass-bg:rgba(28,30,34,0.62); --glass-border:rgba(255,255,255,0.08);
+    --text:#F2F3F5;        --text-2:#A9AEB6;         --text-3:#6E747C;
+    --accent:#4C93FF;      --accent-press:#3B82F0;   --accent-soft:rgba(76,147,255,0.16);
+    --divider:rgba(255,255,255,0.08);
+    --warn:#E0A33A;        --warn-soft:rgba(224,163,58,0.16);
+    --danger:#FF6369;      --danger-soft:rgba(255,99,105,0.16);
+    --shadow:0 8px 28px rgba(0,0,0,0.5);
+    --shadow-soft:0 2px 12px rgba(0,0,0,0.4);
+  }
+}
+
+/* ---------- 2. Base ------------------------------------------------------ */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: var(--t-body);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p, dl, dd { margin: 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 2px var(--s2);
+  border-radius: var(--r-sm);
+}
+
+.hidden { display: none !important; }
+
+/* Focus is always visible, and always the same shape. */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--accent-soft);
+  border-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- 3. Layout shell --------------------------------------------- */
+
+.wrap {
+  max-width: 460px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 0 var(--s5) var(--s10);
+}
+
+/* Big, calm, left-aligned screen title. */
+.app-title {
+  padding: var(--s6) 0 var(--s5);
+}
+.app-title h1 {
+  font: var(--t-display);
+  letter-spacing: -0.02em;
+}
+.app-title .tagline {
+  margin-top: var(--s2);
+  font: var(--t-caption);
+  color: var(--text-2);
+}
+.app-title__row { display: flex; align-items: center; gap: var(--s3); }
+.app-title__row img { width: 32px; height: 32px; border-radius: var(--r-sm); }
+
+/* Vertical stack of cards. */
+.stack { display: flex; flex-direction: column; gap: var(--s4); }
+
+/* Soft fade at the edges of a scrolling region. */
+.scroll-fade {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 24px,
+                                      #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 24px,
+                              #000 calc(100% - 24px), transparent 100%);
+}
+
+/* ---------- 4. Bottom floating action bar (signature element) ------------ */
+
+.bottom-bar {
+  position: sticky;
+  bottom: var(--s4);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s5) 0 0;
+  padding: var(--s2) var(--s3);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow);
+}
+.bottom-bar .btn { flex: 1; }
+.bottom-bar .btn--auto { flex: 0 0 auto; padding-inline: var(--s5); }
+
+/* ---------- 5. Buttons --------------------------------------------------- */
+
+/* The element selector is the base, so buttons created in JS inherit it. */
+button, .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: var(--control-h);
+  padding: 0 var(--s6);
+  font: var(--t-label);
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: transform .12s var(--ease), background .15s var(--ease), opacity .15s var(--ease);
+}
+button:hover, .btn:hover { background: var(--accent-press); }
+button:active, .btn:active { transform: scale(0.97); background: var(--accent-press); }
+button:disabled, .btn:disabled { opacity: .45; cursor: default; transform: none; }
+button:disabled:hover, .btn:disabled:hover { background: var(--accent); }
+
+.btn--primary { background: var(--accent); color: #fff; }
+.btn--tonal, button.secondary, .btn--tonal:hover, button.secondary:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.btn--tonal:active, button.secondary:active { background: var(--accent-soft); }
+
+.btn--neutral { background: var(--surface-2); color: var(--text); }
+.btn--neutral:hover { background: var(--surface-2); }
+
+/* Legacy modifier, written into markup and by JS. */
+button.danger, .btn--danger, button.danger:hover, .btn--danger:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+button.tiny, .btn--sm {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--s4);
+  font: var(--t-caption);
+  font-weight: 600;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px; height: 44px;
+  padding: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+}
+.icon-btn:hover { background: var(--surface-2); }
+
+/* ---------- 6. Card ------------------------------------------------------ */
+
+.card, section {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  box-shadow: var(--shadow-soft);
+  margin-bottom: var(--s4);
+}
+@media (prefers-color-scheme: dark) {
+  .card, section { border: 1px solid var(--glass-border); }
+}
+
+section > h2 {
+  font: var(--t-section);
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s2);
+}
+h3 {
+  font: var(--t-label);
+  font-weight: 600;
+  color: var(--text-2);
+  margin: var(--s6) 0 var(--s3);
+}
+h3:first-of-type { margin-top: var(--s2); }
+
+.hint {
+  font: var(--t-caption);
+  color: var(--text-2);
+  margin-bottom: var(--s4);
+}
+.hint:last-child { margin-bottom: 0; }
+.sub { margin-top: var(--s2); font: var(--t-caption); color: var(--text-2); }
+.sub.warn { color: var(--warn); }
+.usage { margin-top: var(--s4); font: var(--t-caption); color: var(--text-3); }
+.tagline { font: var(--t-caption); color: var(--text-2); }
+
+/* ---------- 7. Grouped list --------------------------------------------- */
+
+.list {
+  background: var(--surface);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.list__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--row-h);
+  padding: 14px var(--s4);
+  position: relative;
+  transition: background var(--dur) var(--ease);
+}
+.list__row + .list__row::before {
+  content: "";
+  position: absolute;
+  left: var(--s4); right: 0; top: 0;
+  border-top: 1px solid var(--divider);
+}
+.list__row:active { background: var(--accent-soft); }
+
+/* ---------- 8. Fields ---------------------------------------------------- */
+
+label {
+  display: block;
+  font: var(--t-label);
+  color: var(--text-2);
+  margin-bottom: var(--s2);
+}
+
+input[type="text"], input[type="password"], input[type="email"], input[type="tel"],
+input[type="date"], input[type="number"], input[type="search"], select, textarea,
+.field {
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 0 var(--s4);
+  font: var(--t-body);
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+textarea {
+  padding: var(--s3) var(--s4);
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.5;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+input::placeholder, textarea::placeholder { color: var(--text-3); }
+input[type="number"] { width: 100%; }
+
+input[type="file"] {
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  font: var(--t-caption);
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px dashed var(--divider);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button {
+  margin-right: var(--s3);
+  padding: var(--s2) var(--s4);
+  font: var(--t-caption);
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: none;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+
+/* Pill search field. */
+.field--search { border-radius: var(--r-pill); padding-left: var(--s5); }
+
+/* ---------- 9. Switch (a checkbox, restyled — JS still reads .checked) --- */
+
+.switch, input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: 52px; height: 32px;
+  min-height: 0;
+  padding: 0;
+  background: var(--divider);
+  border: none;
+  border-radius: var(--r-pill);
+  position: relative;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+.switch::after, input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 28px; height: 28px;
+  background: #fff;
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-soft);
+  transition: transform var(--dur) var(--ease);
+}
+.switch:checked, input[type="checkbox"]:checked { background: var(--accent); }
+.switch:checked::after, input[type="checkbox"]:checked::after { transform: translateX(20px); }
+
+/* ---------- 10. Chip ----------------------------------------------------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  font: var(--t-caption);
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: none;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+.chip[aria-selected="true"], .chip--selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ---------- 11. Bottom sheet -------------------------------------------- */
+
+.sheet-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 40;
+}
+.sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 41;
+  padding: var(--s6);
+  background: var(--surface);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  box-shadow: var(--shadow);
+  animation: sheet-in 280ms var(--ease);
+}
+.sheet::before {
+  content: "";
+  display: block;
+  width: 36px; height: 4px;
+  margin: 0 auto var(--s5);
+  background: var(--text-3);
+  border-radius: var(--r-pill);
+}
+@keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+/* ---------- 12. Progress ------------------------------------------------- */
+
+.bar, .progress {
+  height: 8px;
+  margin-top: var(--s3);
+  background: var(--divider);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.bar > span, .progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--r-pill);
+  transition: width var(--dur) var(--ease);
+}
+
+/* ---------- 13. Status, badges, notes (written by JS) -------------------- */
+
+.status {
+  font: var(--t-caption);
+  color: var(--text-2);
+  word-break: break-word;
+}
+.status.ok { color: var(--success); }
+.status.err { color: var(--danger); }
+.status.warn { color: var(--warn); }
+
+.badge {
+  font: var(--t-caption);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-pill);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.badge.unlocked { background: var(--accent-soft); color: var(--accent); }
+
+.note, .locked-note {
+  padding: var(--s3) var(--s4);
+  font: var(--t-caption);
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-radius: var(--r-md);
+}
+.note.danger { background: var(--danger-soft); color: var(--danger); }
+
+.empty {
+  padding: var(--s5) var(--s4);
+  font: var(--t-caption);
+  color: var(--text-3);
+  text-align: center;
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+}
+
+/* ---------- 14. Action rows and grids ----------------------------------- */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  margin-top: var(--s5);
+}
+.spacer { flex: 1; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); }
+.grid .full, .wide { grid-column: 1 / -1; }
+.field-group { min-width: 0; }
+
+.check { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s4); }
+.check label { margin: 0; font-weight: 450; color: var(--text); flex: 1; }
+
+/* ---------- 15. Documents (built by JS) ---------------------------------- */
+
+/* Single column: a native file input needs its full width, otherwise Chrome
+   truncates "No file chosen" to something like "N...n". */
+.add-doc { display: grid; grid-template-columns: 1fr; gap: var(--s4); margin-bottom: var(--s4); }
+.add-doc > div { min-width: 0; }
+
+.doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s3); }
+.doc {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.doc .thumb {
+  height: 104px;
+  background-color: var(--divider);
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+.doc .meta { padding: var(--s3) var(--s3) var(--s2); font: var(--t-caption); min-width: 0; }
+.doc .meta strong { display: block; font-weight: 600; word-break: break-word; }
+.doc .meta span { color: var(--text-3); }
+/* Stacked, not side by side: a card is ~200px wide and a select plus a Delete
+   button on one row truncates the select to "Passpc". */
+.doc .doc-actions { display: flex; flex-direction: column; gap: var(--s2); padding: 0 var(--s3) var(--s3); }
+.doc .doc-actions select { width: 100%; min-width: 0; padding: 0 var(--s3); }
+.doc .doc-actions select,
+.doc .doc-actions button { min-height: var(--control-h-sm); font: var(--t-caption); }
+
+/* ---------- 16. Custom fields (built by JS) ------------------------------ */
+
+.custom-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--s2); margin-bottom: var(--s3); }
+.custom-row input { min-width: 0; }
+
+/* ---------- 17. Image tool ----------------------------------------------- */
+
+.preset-row { display: grid; grid-template-columns: 1fr; gap: var(--s4); }
+.custom-preset {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s3);
+  margin-top: var(--s4);
+  padding: var(--s4);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+}
+/* Stacked rather than side by side: in a 460px column a 132px preview left the
+   stats about 150px, which wrapped every value ("5.91 MB · 3000x4000") onto two
+   lines. Full-width stats read cleanly. */
+.result {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s4);
+  margin-top: var(--s5);
+  padding: var(--s4);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+}
+.result img {
+  width: 100%;
+  max-width: 180px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  display: block;
+}
+.stats { display: grid; grid-template-columns: auto 1fr; gap: var(--s1) var(--s3); font: var(--t-caption); align-self: start; min-width: 0; }
+.stats dt { color: var(--text-2); }
+.stats dd { font-variant-numeric: tabular-nums; word-break: break-word; }
+.result .bar { grid-column: 1 / -1; margin-top: var(--s1); }
+.saved-badge { font: var(--t-section); color: var(--success); }
+
+/* ---------- 18. OCR ------------------------------------------------------ */
+
+pre#ocrRaw {
+  margin-top: var(--s3);
+  padding: var(--s4);
+  max-height: 240px;
+  overflow: auto;
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ocr-row { display: grid; grid-template-columns: 52px 1fr; gap: var(--s2) var(--s3); align-items: center; margin-bottom: var(--s3); }
+.ocr-row .name { font: var(--t-caption); font-weight: 600; color: var(--text); margin: 0; grid-column: 2; }
+.ocr-row input[type="checkbox"] { grid-row: span 2; }
+.ocr-row input[type="text"] { grid-column: 2; }
+.ocr-row .note { grid-column: 2; margin: 0; }
+.conf { font: var(--t-title); }
+.conf.high { color: var(--success); }
+.conf.low { color: var(--warn); }
+.conf.bad { color: var(--danger); }
+
+/* ---------- 19. Mapping list (JS builds a <table class="maps">) ---------- */
+
+table.maps {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--t-caption);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+table.maps th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-3);
+  font-weight: 600;
+  padding: var(--s3) var(--s4) var(--s2);
+}
+table.maps td { padding: var(--s3) var(--s4); vertical-align: middle; }
+table.maps tr + tr td { border-top: 1px solid var(--divider); }
+table.maps code { word-break: break-all; }
+table.maps td:last-child { width: 1%; white-space: nowrap; }
+
+/* ---------- 20. Utilities (so no markup carries inline values) ----------- */
+
+.u-upper { text-transform: uppercase; }
+.u-auto { width: auto; flex: 0 0 auto; }
+.u-mt-0 { margin-top: 0; }
+.u-mb-4 { margin-bottom: var(--s4); }
+.u-narrow { max-width: 340px; }
+.u-push { margin-left: auto; }
+
+details > summary {
+  font: var(--t-caption);
+  color: var(--text-2);
+  cursor: pointer;
+  padding: var(--s2) 0;
+}
+details { margin-top: var(--s5); }
+
+/* ---------- 21. Roadmap list -------------------------------------------- */
+
+ul.roadmap { margin: 0; padding-left: var(--s5); font: var(--t-caption); color: var(--text-2); }
+ul.roadmap li { margin-bottom: var(--s1); }
+ul.roadmap li.done { color: var(--success); }

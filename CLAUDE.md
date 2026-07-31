@@ -4,6 +4,12 @@ A local-first Chrome/Edge extension (Manifest V3): encrypted document vault +
 intelligent form autofill + resize-to-portal-spec + OCR extract. No backend, no
 accounts, works offline. Built in phases — see [PLAN.md](PLAN.md).
 
+**Follow [DESIGN.md](DESIGN.md) for all UI. Apply it during every phase.** Every
+visual value lives in `styles/one-ui.css` as a custom property — never hard-code
+a colour, radius, spacing, type step, shadow or duration anywhere else. Read its
+"As built" section before touching the CSS: several class names are written by
+JavaScript at runtime and cannot be renamed.
+
 ## Hard rules
 
 These are not preferences. Breaking one is a bug, even if the feature works.

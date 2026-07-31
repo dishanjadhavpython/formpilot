@@ -206,7 +206,7 @@ if (!globalThis.__formPilotContentLoaded) {
 
   function outline(el) {
     outlined.push({ el, outline: el.style.outline, offset: el.style.outlineOffset });
-    el.style.setProperty('outline', '2px solid #0b6e4f', 'important');
+    el.style.setProperty('outline', '2px solid #1B6FF3', 'important');   /* --accent */
     el.style.setProperty('outline-offset', '1px', 'important');
   }
 
@@ -234,25 +234,48 @@ if (!globalThis.__formPilotContentLoaded) {
     host.style.setProperty('inset', 'auto 16px 16px auto', 'important');
 
     const shadow = host.attachShadow({ mode: 'open' });
+
+    // These styles mirror styles/one-ui.css. A Shadow DOM rendered into a
+    // third-party page cannot reach the extension's stylesheet, and CSS custom
+    // properties inherit from the *host page*, where our tokens do not exist -
+    // so the values are redeclared on :host. Keep the two in sync by hand.
     shadow.innerHTML = `
       <style>
+        :host {
+          --accent:#1B6FF3; --surface:#17181B;
+          --r-lg:22px; --r-md:16px; --r-pill:999px;
+          --s2:8px; --s3:12px; --s4:16px;
+          --shadow:0 8px 28px rgba(0,0,0,0.45);
+          --ease:cubic-bezier(0.22,0.61,0.36,1);
+          --font:"Inter","SamsungOne","system-ui",-apple-system,"Segoe UI",Roboto,sans-serif;
+        }
         :host, * { box-sizing: border-box; }
         .card {
-          font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-          background: #0b6e4f; color: #fff;
-          padding: 11px 14px; border-radius: 9px;
-          box-shadow: 0 6px 22px rgba(0,0,0,.28);
+          font: 450 13px/1.45 var(--font);
+          background: var(--accent); color: #fff;
+          padding: var(--s3) var(--s4);
+          border-radius: var(--r-lg);
+          box-shadow: var(--shadow);
           max-width: 300px;
         }
-        .card.teach { background: #14231c; }
-        .card strong { display: block; font-size: 14px; margin-bottom: 2px; }
-        .card .muted { opacity: .82; }
+        .card.teach { background: var(--surface); }
+        .card strong { display: block; font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+        .card .muted { opacity: .85; }
         select, button {
-          font: inherit; border-radius: 6px; border: none; padding: 5px 9px; margin-top: 8px;
+          font: inherit; border: none; margin-top: var(--s2);
         }
-        select { width: 100%; color: #14231c; }
-        .row { display: flex; gap: 6px; }
-        button { background: #fff; color: #0b6e4f; font-weight: 600; cursor: pointer; flex: 1; }
+        select {
+          width: 100%; color: #17181C; background: #fff;
+          border-radius: var(--r-md); padding: 8px var(--s3);
+        }
+        .row { display: flex; gap: var(--s2); }
+        button {
+          flex: 1; padding: 8px var(--s3);
+          border-radius: var(--r-pill);
+          background: #fff; color: var(--accent); font-weight: 600; cursor: pointer;
+          transition: transform .12s var(--ease);
+        }
+        button:active { transform: scale(0.97); }
         button.ghost { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); }
       </style>
       <div id="slot"></div>`;
