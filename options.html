@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>FormPilot - Options</title>
+  <title>FormPilot - Vault</title>
   <style>
     :root {
       --bg: #f6f8f7;
@@ -11,43 +11,81 @@
       --muted: #5c7268;
       --brand: #0b6e4f;
       --brand-dark: #095c42;
+      --brand-tint: #eaf4f0;
       --line: #dfe7e3;
+      --danger: #b3261e;
+      --danger-tint: #fdecea;
+      --warn: #8a6100;
+      --warn-tint: #fff6e0;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 32px 20px 56px;
+      padding: 32px 20px 64px;
       font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       color: var(--fg);
       background: var(--bg);
     }
-    .wrap { max-width: 640px; margin: 0 auto; }
-    header { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+    .wrap { max-width: 720px; margin: 0 auto; }
+
+    header { display: flex; align-items: center; gap: 12px; }
     header img { width: 36px; height: 36px; border-radius: 8px; }
     h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.015em; }
-    .tagline { margin: 0 0 24px 48px; font-size: 13px; color: var(--muted); }
+    .tagline { margin: 4px 0 24px 48px; font-size: 13px; color: var(--muted); }
+
     section {
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 10px;
-      padding: 18px 20px;
+      padding: 20px;
       margin-bottom: 16px;
     }
-    h2 { margin: 0 0 4px; font-size: 15px; font-weight: 650; }
-    .hint { margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+    section > h2 {
+      margin: 0 0 4px;
+      font-size: 15px;
+      font-weight: 650;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .hint { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+    .hint:last-child { margin-bottom: 0; }
+
+    h3 {
+      margin: 24px 0 10px;
+      font-size: 13px;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    h3:first-of-type { margin-top: 4px; }
+
+    /* --- form controls --- */
     label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-    input[type="number"] {
-      width: 90px;
-      padding: 7px 9px;
+    input[type="text"], input[type="password"], input[type="email"],
+    input[type="tel"], input[type="date"], input[type="number"], select, textarea {
+      width: 100%;
+      padding: 8px 10px;
       font: inherit;
+      color: inherit;
+      background: #fff;
       border: 1px solid var(--line);
       border-radius: 6px;
-      background: #fff;
-      color: inherit;
     }
-    .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .check { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-    .check label { margin: 0; font-weight: 500; }
+    input:focus, select:focus, textarea:focus {
+      outline: 2px solid var(--brand);
+      outline-offset: -1px;
+      border-color: var(--brand);
+    }
+    textarea { resize: vertical; min-height: 64px; }
+    input[type="number"] { width: 90px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid .full { grid-column: 1 / -1; }
+    .field { margin-bottom: 0; }
+    .sub { margin: 5px 0 0; font-size: 12px; color: var(--muted); }
+    .sub.warn { color: var(--warn); }
+
     button {
       padding: 8px 16px;
       font: inherit;
@@ -59,12 +97,84 @@
       cursor: pointer;
     }
     button:hover { background: var(--brand-dark); }
-    .actions { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
-    #status { font-size: 13px; color: var(--muted); }
-    #status.ok { color: var(--brand); }
-    #status.err { color: #b3261e; }
+    button:disabled { opacity: 0.55; cursor: default; }
+    button.secondary {
+      background: #fff;
+      color: var(--fg);
+      border: 1px solid var(--line);
+    }
+    button.secondary:hover { background: var(--brand-tint); border-color: var(--brand); }
+    button.danger { background: #fff; color: var(--danger); border: 1px solid #f0c8c5; }
+    button.danger:hover { background: var(--danger-tint); }
+    button.tiny { padding: 4px 10px; font-size: 12px; }
+    .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+    .spacer { flex: 1; }
+
+    /* --- status + badges --- */
+    .status { font-size: 13px; color: var(--muted); }
+    .status.ok { color: var(--brand); }
+    .status.err { color: var(--danger); }
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 3px 8px;
+      border-radius: 20px;
+    }
+    .badge.locked { background: var(--warn-tint); color: var(--warn); }
+    .badge.unlocked { background: var(--brand-tint); color: var(--brand); }
+    .note {
+      padding: 10px 12px;
+      border-radius: 7px;
+      font-size: 13px;
+      background: var(--warn-tint);
+      color: var(--warn);
+      border: 1px solid #f0e0b8;
+    }
+    .note.danger { background: var(--danger-tint); color: var(--danger); border-color: #f0c8c5; }
+
+    /* --- custom fields --- */
+    .custom-row { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px; margin-bottom: 10px; }
+    .empty {
+      padding: 14px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* --- documents --- */
+    .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+    .doc {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fbfcfc;
+      display: flex;
+      flex-direction: column;
+    }
+    .doc .thumb {
+      height: 110px;
+      background: #eef2f0 center / contain no-repeat;
+      border-bottom: 1px solid var(--line);
+    }
+    .doc .meta { padding: 8px 10px; font-size: 12px; }
+    .doc .meta strong { display: block; font-size: 13px; margin-bottom: 2px; word-break: break-word; }
+    .doc .meta span { color: var(--muted); }
+    .doc .doc-actions { display: flex; gap: 6px; padding: 0 10px 10px; }
+    .add-doc { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 14px; }
+    .add-doc > div { flex: 0 0 auto; }
+    .add-doc select { width: auto; min-width: 150px; }
+    input[type="file"] { font-size: 13px; }
+
+    .usage { font-size: 12px; color: var(--muted); margin-top: 14px; }
+    .hidden { display: none !important; }
+    code { font-size: 12px; background: var(--brand-tint); padding: 1px 5px; border-radius: 4px; }
     ul.roadmap { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
     ul.roadmap li { margin-bottom: 4px; }
+    ul.roadmap li.done { color: var(--brand); }
   </style>
 </head>
 <body>
@@ -73,40 +183,163 @@
       <img src="icons/icon128.png" alt="">
       <h1>FormPilot</h1>
     </header>
-    <p class="tagline">Everything is stored locally on this device. No account, no server, works offline.</p>
+    <p class="tagline">Everything is stored locally on this device, encrypted. No account, no server, works offline.</p>
 
-    <section>
-      <h2>Settings</h2>
-      <p class="hint">Saved to <code>chrome.storage.local</code>.</p>
+    <!-- ============ VIEW A: first run, no vault yet ============ -->
+    <section id="setupView" class="hidden">
+      <h2>Create your vault</h2>
+      <p class="hint">
+        Pick a passphrase. It encrypts everything you store here (AES-256-GCM, key
+        derived with PBKDF2). It is never saved anywhere &mdash; which means
+        <strong>nobody, including this extension, can recover your data if you forget it</strong>.
+      </p>
 
-      <label for="autoLock">Auto-lock the vault after (minutes idle)</label>
-      <div class="row">
-        <input id="autoLock" type="number" min="1" max="120" step="1" value="5">
-      </div>
-
-      <div class="check">
-        <input id="highlight" type="checkbox" checked>
-        <label for="highlight">Highlight fields that autofill filled in</label>
+      <div class="grid">
+        <div class="field">
+          <label for="newPass">Passphrase</label>
+          <input id="newPass" type="password" autocomplete="off" spellcheck="false"
+                 placeholder="At least 10 characters">
+          <p class="sub" id="strengthHint">Longer is stronger. A few random words beats one clever word.</p>
+        </div>
+        <div class="field">
+          <label for="confirmPass">Confirm passphrase</label>
+          <input id="confirmPass" type="password" autocomplete="off" spellcheck="false"
+                 placeholder="Type it again">
+        </div>
       </div>
 
       <div class="actions">
-        <button id="saveBtn" type="button">Save settings</button>
-        <span id="status" role="status" aria-live="polite"></span>
+        <button id="createBtn" type="button">Create encrypted vault</button>
+        <span id="setupStatus" class="status" role="status" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <!-- ============ VIEW B: vault exists, locked ============ -->
+    <section id="lockedView" class="hidden">
+      <h2>Vault locked <span class="badge locked">Locked</span></h2>
+      <p class="hint">Enter your passphrase to decrypt the vault for this session.</p>
+
+      <div style="max-width: 340px">
+        <label for="unlockPass">Passphrase</label>
+        <input id="unlockPass" type="password" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="actions">
+        <button id="unlockBtn" type="button">Unlock</button>
+        <span id="unlockStatus" class="status" role="status" aria-live="polite"></span>
+        <span class="spacer"></span>
+        <button id="resetBtn" class="danger tiny" type="button">Forgot passphrase?</button>
+      </div>
+    </section>
+
+    <!-- ============ VIEW C: unlocked, the editor ============ -->
+    <section id="unlockedView" class="hidden">
+      <h2>Your details <span class="badge unlocked">Unlocked</span></h2>
+      <p class="hint">Autofill (Phase 2) will pull from these. Nothing is written to disk until you press Save.</p>
+
+      <h3>Personal fields</h3>
+      <div class="grid">
+        <div class="field">
+          <label for="f-fullName">Full name</label>
+          <input id="f-fullName" type="text" data-field="fullName" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="f-dob">Date of birth</label>
+          <input id="f-dob" type="date" data-field="dob" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="f-email">Email</label>
+          <input id="f-email" type="email" data-field="email" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="f-phone">Phone</label>
+          <input id="f-phone" type="tel" data-field="phone" autocomplete="off">
+        </div>
+        <div class="field full">
+          <label for="f-address">Address</label>
+          <textarea id="f-address" data-field="address" autocomplete="off"></textarea>
+        </div>
+        <div class="field">
+          <label for="f-pan">PAN</label>
+          <input id="f-pan" type="text" data-field="pan" autocomplete="off" spellcheck="false"
+                 placeholder="ABCDE1234F" maxlength="10" style="text-transform: uppercase">
+          <p class="sub" id="panHint">10 characters: 5 letters, 4 digits, 1 letter.</p>
+        </div>
+        <div class="field">
+          <label for="f-aadhaarMasked">Aadhaar (masked)</label>
+          <input id="f-aadhaarMasked" type="text" data-field="aadhaarMasked" autocomplete="off"
+                 spellcheck="false" placeholder="Last 4 digits, e.g. 1234">
+          <p class="sub warn">Only the last 4 digits are ever stored. Paste the full number and it will be masked on the spot.</p>
+        </div>
+      </div>
+
+      <h3>Custom fields</h3>
+      <div id="customList"></div>
+      <button id="addCustomBtn" class="secondary tiny" type="button">+ Add custom field</button>
+
+      <h3>Documents</h3>
+      <div class="add-doc">
+        <div>
+          <label for="docType">Type</label>
+          <select id="docType">
+            <option value="photo">Passport photo</option>
+            <option value="signature">Signature</option>
+            <option value="pan">PAN card</option>
+            <option value="aadhaar">Aadhaar</option>
+            <option value="marksheet">Marksheet</option>
+            <option value="idProof">Other ID proof</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label for="docFile">Image file</label>
+          <input id="docFile" type="file" accept="image/*">
+        </div>
+      </div>
+      <div id="docStatus" class="status" style="margin-bottom: 14px"></div>
+      <div id="docList"></div>
+
+      <div class="actions">
+        <button id="saveBtn" type="button">Save vault</button>
+        <button id="lockBtn" class="secondary" type="button">Lock</button>
+        <span id="saveStatus" class="status" role="status" aria-live="polite"></span>
+      </div>
+      <p class="usage" id="usage"></p>
+    </section>
+
+    <!-- ============ Settings (not secret, always visible) ============ -->
+    <section>
+      <h2>Settings</h2>
+      <p class="hint">Preferences only &mdash; no personal data. Stored unencrypted in <code>chrome.storage.local</code>.</p>
+
+      <label for="autoLock">Auto-lock the vault after (minutes idle)</label>
+      <input id="autoLock" type="number" min="1" max="120" step="1" value="5">
+      <p class="sub">Wired up in Phase 5. The vault already locks whenever you close this tab.</p>
+
+      <div class="check" style="display:flex; align-items:center; gap:8px; margin-top:14px">
+        <input id="highlight" type="checkbox" checked>
+        <label for="highlight" style="margin:0; font-weight:500">Highlight fields that autofill fills in</label>
+      </div>
+
+      <div class="actions" style="margin-top: 14px">
+        <button id="saveSettingsBtn" class="secondary" type="button">Save settings</button>
+        <span id="settingsStatus" class="status" role="status" aria-live="polite"></span>
       </div>
     </section>
 
     <section>
-      <h2>Coming next</h2>
+      <h2>Build progress</h2>
       <ul class="roadmap">
-        <li>Phase 1 - encrypted vault (passphrase, PBKDF2 &rarr; AES-256-GCM)</li>
-        <li>Phase 2 - autofill engine (content script + field matching)</li>
-        <li>Phase 3 - resize/compress an image to a portal's exact spec</li>
-        <li>Phase 4 - OCR auto-extract from an ID image (stretch)</li>
-        <li>Phase 5 - idle lock, encrypted backup export/import, polish</li>
+        <li class="done">Phase 0 &mdash; scaffold &#10003;</li>
+        <li class="done">Phase 1 &mdash; encrypted vault &#10003;</li>
+        <li>Phase 2 &mdash; autofill engine (content script + field matching)</li>
+        <li>Phase 3 &mdash; resize/compress an image to a portal's exact spec</li>
+        <li>Phase 4 &mdash; OCR auto-extract from an ID image (stretch)</li>
+        <li>Phase 5 &mdash; idle lock, encrypted backup export/import, polish</li>
       </ul>
     </section>
   </div>
 
-  <script src="options.js"></script>
+  <script type="module" src="options.js"></script>
 </body>
 </html>
