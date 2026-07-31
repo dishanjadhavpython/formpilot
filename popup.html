@@ -8,56 +8,107 @@
     /* Popup shell only — every value comes from the tokens in one-ui.css. */
     body {
       width: 380px;
-      min-height: 520px;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      padding: 0 var(--s5) var(--s4);
+      padding: 0 var(--s5) var(--s3);
     }
-    .popup-body { flex: 1; display: flex; flex-direction: column; gap: var(--s4); }
-    .popup-footer {
+    .popup-head {
       display: flex;
-      gap: var(--s5);
-      padding-top: var(--s4);
-      margin-top: var(--s2);
-      border-top: 1px solid var(--divider);
-      font: var(--t-caption);
+      align-items: center;
+      gap: var(--s3);
+      padding: var(--s3) 0 var(--s1);
     }
-    .popup-footer a { color: var(--text-2); cursor: pointer; }
-    .popup-footer a:hover { color: var(--accent); }
-    .site { font: var(--t-caption); color: var(--text-3); word-break: break-all; }
-    /* The bar is pushed to the bottom of the popup even when content is short. */
-    .bottom-bar { margin-top: auto; }
+    .popup-head img { width: 30px; height: 30px; border-radius: var(--r-sm); }
+    .popup-head h1 { font: var(--t-title); letter-spacing: -0.02em; }
+    .site {
+      font: var(--t-caption);
+      color: var(--text-3);
+      word-break: break-all;
+      margin-bottom: var(--s2);
+    }
+    .popup-body { flex: 1; display: flex; flex-direction: column; gap: var(--s2); }
+    .bottom-bar { margin-top: var(--s2); }
+    .popup-foot {
+      display: flex;
+      align-items: center;
+      gap: var(--s4);
+      padding-top: var(--s2);
+      font: var(--t-caption);
+      font-size: 12px;
+      color: var(--text-3);
+    }
+    .popup-foot a { color: var(--text-2); cursor: pointer; }
+    .popup-foot a:hover { color: var(--accent); }
+    .locked-note { padding: var(--s2) var(--s3); font-size: 12px; }
   </style>
 </head>
 <body>
-  <header class="app-title">
-    <div class="app-title__row">
-      <img src="icons/icon48.png" alt="">
-      <h1>FormPilot</h1>
-      <span id="lockBadge" class="badge" style="margin-left:auto">Locked</span>
-    </div>
-    <p class="site" id="site"></p>
+  <header class="popup-head">
+    <img src="icons/icon48.png" alt="">
+    <h1>FormPilot</h1>
+    <span id="lockBadge" class="badge u-push">Locked</span>
   </header>
+  <p class="site" id="site"></p>
 
   <div class="popup-body">
     <p class="locked-note hidden" id="lockedNote">
-      The vault is locked. Unlock it in the vault tab and the key stays available
-      until you close Chrome.
+      Unlock the vault to fill forms.
     </p>
 
+    <!-- Kept above the tiles: the sticky action bar would otherwise cover it. -->
     <p id="status" class="status" role="status" aria-live="polite"></p>
 
-    <footer class="popup-footer">
-      <a id="optionsLink">Open vault &rarr;</a>
-      <a id="lockLink" class="hidden">Lock</a>
-    </footer>
+    <!-- Every feature, one tap away. Each opens the vault page at that section. -->
+    <div class="tiles">
+      <button class="tile tile--blue" type="button" data-open="unlockedView">
+        <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+        <span class="tile__name">Vault</span>
+        <span class="tile__desc">Your details &amp; documents, encrypted</span>
+      </button>
+
+      <button class="tile tile--violet" type="button" data-open="imageView">
+        <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span>
+        <span class="tile__name">Image tool</span>
+        <span class="tile__desc">Resize to a portal's exact KB band</span>
+      </button>
+
+      <button class="tile tile--teal" type="button" data-open="ocrView">
+        <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 9h7M7 12h10M7 15h5"/></svg></span>
+        <span class="tile__name">Read an ID</span>
+        <span class="tile__desc">OCR a card to fill fields</span>
+      </button>
+
+      <button class="tile tile--amber" type="button" data-open="mappingsView">
+        <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.4 5.2 5.6.7-4.2 3.9 1.1 5.6L12 15.7 7.1 18.4l1.1-5.6L4 8.9l5.6-.7z"/></svg></span>
+        <span class="tile__name">Taught sites</span>
+        <span class="tile__desc">Corrections you saved per site</span>
+      </button>
+
+      <button class="tile tile--green" type="button" data-open="backupView">
+        <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></span>
+        <span class="tile__name">Backup</span>
+        <span class="tile__desc">Export &amp; restore, still encrypted</span>
+      </button>
+
+      <button class="tile tile--rose" type="button" data-open="settingsView">
+        <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-6M4 11V3M12 21v-9M12 8V3M20 21v-4M20 13V3M1 15h6M9 8h6M17 17h6"/></svg></span>
+        <span class="tile__name">Settings</span>
+        <span class="tile__desc">Auto-lock &amp; fill highlighting</span>
+      </button>
+    </div>
   </div>
 
-  <!-- Signature element: the primary action sits in a floating glass pill at
-       the bottom, within thumb reach rather than up in a toolbar. -->
+  <!-- Primary action, within thumb reach. -->
   <div class="bottom-bar">
     <button id="teachBtn" class="btn btn--tonal btn--auto" type="button">Teach</button>
     <button id="fillBtn" class="btn btn--primary" type="button">Fill this form</button>
+  </div>
+
+  <div class="popup-foot">
+    <a id="optionsLink">Open vault &rarr;</a>
+    <a id="lockLink" class="hidden">Lock now</a>
+    <span class="u-push">Local only</span>
   </div>
 
   <script src="popup.js"></script>

@@ -45,6 +45,21 @@
 
   /* Control sizing */
   --control-h:52px; --control-h-sm:40px; --row-h:56px;
+
+  /* Card glass. Cards sit over the ambient background glows below, which is
+     what makes the translucency read as glass rather than as flat grey. */
+  --card-bg:rgba(255,255,255,0.84);
+  --card-border:rgba(255,255,255,0.7);
+  --blur:blur(20px) saturate(180%);
+
+  /* Icon-chip hues. Used ONLY behind feature icons — body text and controls
+     stay on the single accent, so the interface still reads as one system. */
+  --hue-blue:#1B6FF3;   --hue-blue-soft:rgba(27,111,243,0.12);
+  --hue-violet:#7C5CE6; --hue-violet-soft:rgba(124,92,230,0.12);
+  --hue-teal:#0FA3A3;   --hue-teal-soft:rgba(15,163,163,0.12);
+  --hue-amber:#D68A00;  --hue-amber-soft:rgba(214,138,0,0.14);
+  --hue-rose:#E0568A;   --hue-rose-soft:rgba(224,86,138,0.12);
+  --hue-green:#1DAA61;  --hue-green-soft:rgba(29,170,97,0.12);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -58,6 +73,16 @@
     --danger:#FF6369;      --danger-soft:rgba(255,99,105,0.16);
     --shadow:0 8px 28px rgba(0,0,0,0.5);
     --shadow-soft:0 2px 12px rgba(0,0,0,0.4);
+
+    --card-bg:rgba(23,24,27,0.78);
+    --card-border:rgba(255,255,255,0.08);
+
+    --hue-blue:#6BA5FF;   --hue-blue-soft:rgba(107,165,255,0.16);
+    --hue-violet:#A08CFF; --hue-violet-soft:rgba(160,140,255,0.16);
+    --hue-teal:#3ECFCF;   --hue-teal-soft:rgba(62,207,207,0.16);
+    --hue-amber:#F0B74E;  --hue-amber-soft:rgba(240,183,78,0.18);
+    --hue-rose:#FF89B0;   --hue-rose-soft:rgba(255,137,176,0.16);
+    --hue-green:#4BD48B;  --hue-green-soft:rgba(75,212,139,0.16);
   }
 }
 
@@ -71,6 +96,20 @@ body {
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Ambient colour. Two soft accent glows fixed behind everything — this is what
+   the glass surfaces refract, and without it translucency just looks grey. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 45% at 12% 0%, var(--hue-blue-soft) 0%, transparent 70%),
+    radial-gradient(50% 40% at 100% 18%, var(--hue-violet-soft) 0%, transparent 70%),
+    radial-gradient(55% 35% at 80% 100%, var(--hue-teal-soft) 0%, transparent 70%);
 }
 
 h1, h2, h3, p, dl, dd { margin: 0; }
@@ -222,14 +261,29 @@ button.tiny, .btn--sm {
 /* ---------- 6. Card ------------------------------------------------------ */
 
 .card, section {
-  background: var(--surface);
+  position: relative;
+  background: var(--card-bg);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--card-border);
   border-radius: var(--r-lg);
   padding: var(--s5);
   box-shadow: var(--shadow-soft);
   margin-bottom: var(--s4);
+  animation: rise 420ms var(--ease) both;
 }
-@media (prefers-color-scheme: dark) {
-  .card, section { border: 1px solid var(--glass-border); }
+
+/* Staggered entrance, so the page assembles rather than snapping in. */
+section:nth-of-type(1) { animation-delay: 0ms; }
+section:nth-of-type(2) { animation-delay: 45ms; }
+section:nth-of-type(3) { animation-delay: 90ms; }
+section:nth-of-type(4) { animation-delay: 135ms; }
+section:nth-of-type(5) { animation-delay: 180ms; }
+section:nth-of-type(n+6) { animation-delay: 220ms; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
 }
 
 section > h2 {
@@ -300,7 +354,7 @@ input[type="date"], input[type="number"], input[type="search"], select, textarea
   font: var(--t-body);
   color: var(--text);
   background: var(--surface-2);
-  border: 1px solid transparent;
+  border: 1px solid var(--divider);
   border-radius: var(--r-md);
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
@@ -431,9 +485,24 @@ input[type="file"]::file-selector-button {
 .bar > span, .progress > span {
   display: block;
   height: 100%;
-  background: var(--accent);
   border-radius: var(--r-pill);
   transition: width var(--dur) var(--ease);
+  /* A moving sheen, so a slow OCR pass looks alive rather than stalled. */
+  background: linear-gradient(90deg, var(--accent), var(--hue-violet), var(--accent));
+  background-size: 200% 100%;
+  animation: sheen 1.6s linear infinite;
+}
+@keyframes sheen {
+  from { background-position: 0% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* The badge breathes once on unlock — a small confirmation that it changed. */
+.badge.unlocked { animation: pop 420ms var(--ease); }
+@keyframes pop {
+  0%   { transform: scale(0.8); opacity: 0; }
+  60%  { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); }
 }
 
 /* ---------- 13. Status, badges, notes (written by JS) -------------------- */
@@ -619,7 +688,76 @@ table.maps tr + tr td { border-top: 1px solid var(--divider); }
 table.maps code { word-break: break-all; }
 table.maps td:last-child { width: 1%; white-space: nowrap; }
 
-/* ---------- 20. Utilities (so no markup carries inline values) ----------- */
+/* ---------- 20. Feature tiles (the popup's map of the extension) --------- */
+
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+
+/* Compact by necessity: Chrome caps a popup at 600px tall, and six tiles plus
+   the header, action bar and footer have to fit inside that. */
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s1);
+  min-height: 0;
+  padding: var(--s3);
+  text-align: left;
+  background: var(--card-bg);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-soft);
+  color: var(--text);
+  cursor: pointer;
+  animation: rise 380ms var(--ease) both;
+  transition: transform .18s var(--ease), box-shadow .18s var(--ease), background .18s var(--ease);
+}
+.tile:hover { background: var(--card-bg); transform: translateY(-2px); box-shadow: var(--shadow); }
+.tile:active { transform: scale(0.975); }
+
+.tile__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px; height: 30px;
+  margin-bottom: var(--s1);
+  border-radius: var(--r-sm);
+  background: var(--tile-soft, var(--accent-soft));
+  color: var(--tile-hue, var(--accent));
+}
+.tile__icon svg { width: 18px; height: 18px; }
+.tile__name { font: var(--t-label); font-weight: 600; font-size: 13.5px; color: var(--text); }
+.tile__desc { font: var(--t-caption); font-size: 11.5px; color: var(--text-2); line-height: 1.3; }
+
+.tile--blue   { --tile-hue: var(--hue-blue);   --tile-soft: var(--hue-blue-soft); }
+.tile--violet { --tile-hue: var(--hue-violet); --tile-soft: var(--hue-violet-soft); }
+.tile--teal   { --tile-hue: var(--hue-teal);   --tile-soft: var(--hue-teal-soft); }
+.tile--amber  { --tile-hue: var(--hue-amber);  --tile-soft: var(--hue-amber-soft); }
+.tile--rose   { --tile-hue: var(--hue-rose);   --tile-soft: var(--hue-rose-soft); }
+.tile--green  { --tile-hue: var(--hue-green);  --tile-soft: var(--hue-green-soft); }
+
+.tiles .tile:nth-child(1) { animation-delay: 40ms; }
+.tiles .tile:nth-child(2) { animation-delay: 80ms; }
+.tiles .tile:nth-child(3) { animation-delay: 120ms; }
+.tiles .tile:nth-child(4) { animation-delay: 160ms; }
+.tiles .tile:nth-child(5) { animation-delay: 200ms; }
+.tiles .tile:nth-child(6) { animation-delay: 240ms; }
+
+/* A coloured icon chip beside a section heading, matching the tiles. */
+.sec-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  flex: 0 0 auto;
+  border-radius: var(--r-sm);
+  background: var(--tile-soft, var(--accent-soft));
+  color: var(--tile-hue, var(--accent));
+}
+.sec-icon svg { width: 17px; height: 17px; }
+
+/* ---------- 21. Utilities (so no markup carries inline values) ----------- */
 
 .u-upper { text-transform: uppercase; }
 .u-auto { width: auto; flex: 0 0 auto; }

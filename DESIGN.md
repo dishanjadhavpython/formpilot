@@ -59,10 +59,28 @@ To re-theme, edit only that block.
 
 `.bottom-bar` (signature element) · `.btn` + `.btn--primary` / `--tonal` / `--neutral` / `--danger`
 / `--sm` · `.icon-btn` · `.card` · `.list` / `.list__row` · `.field` · `.switch` · `.chip` ·
-`.sheet` · `.progress`.
+`.sheet` · `.progress` · `.tiles` / `.tile` · `.sec-icon`.
 
 The bottom bar is glass: `var(--glass-bg)` with `backdrop-filter: blur(20px) saturate(180%)`, a
 `var(--glass-border)` hairline, `--r-pill` radius and `var(--shadow)`.
+
+**Glass on cards.** `.card` / `section` are translucent (`--card-bg`) over an ambient background:
+`body::before` paints three fixed radial accent glows. That background is what the blur refracts —
+without it, translucency just looks grey. Card opacity is deliberately high (0.84 light / 0.78
+dark) because body text sits on it; do not lower it.
+
+**Colour.** Body text and controls stay on the single accent. The `--hue-*` tokens (blue, violet,
+teal, amber, rose, green) are for **icon chips only** — `.tile__icon` and `.sec-icon` — so the
+interface still reads as one system rather than a rainbow.
+
+**Feature tiles** (`.tiles` / `.tile`) are the popup's map of the extension: icon chip, name, and a
+one-line description. Each carries `data-open="<sectionId>"`; `popup.js` opens
+`options.html#<sectionId>` and `options.js` scrolls there via `revealHashTarget()`.
+
+**Motion.** Cards and tiles enter with a staggered `rise` (fade + 10px translate). Tiles lift on
+hover and scale on press. Progress bars carry a moving `sheen` gradient so a slow OCR pass looks
+alive. The unlocked badge plays a single `pop`. All of it is disabled by the global
+`prefers-reduced-motion` rule.
 
 ---
 
@@ -124,3 +142,16 @@ blue accent broke "one confident accent".
 **Unused by design.** `.list` / `.list__row`, `.chip`, `.sheet` and `.icon-btn` are built per this
 spec but not yet used; the app currently has no bottom sheet or chip surface, and uses native
 `confirm()` / `prompt()` for dialogs.
+
+**Inputs need a visible edge on glass.** Their border was `transparent` while cards were opaque.
+Once cards became translucent the fields disappeared into them, so the border is now `--divider`.
+
+**The popup has a hard 600px ceiling.** Chrome will not render a taller popup. Header + six tiles +
+action bar + footer only just fit, which is why `.tile` padding and the popup's own spacing are
+tighter than the rest of the system. Adding a seventh tile means removing something else.
+
+**Verify UI changes by rendering, not by reading.** A headless Chrome pass against stubbed
+`chrome.*` APIs is how the `N...n`, "Passpc" and stats-wrapping breaks were caught — and how the
+`views.unlocked.addEventListener` crash should have been caught. Always check the console, not just
+the screenshot: that crash left the page blank while the screenshots still looked fine, because the
+harness was force-showing views that `boot()` had never rendered.

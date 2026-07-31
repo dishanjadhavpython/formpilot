@@ -19,11 +19,10 @@
 
     <!-- ============ VIEW A: first run, no vault yet ============ -->
     <section id="setupView" class="hidden">
-      <h2>Create your vault</h2>
+      <h2><span class="sec-icon tile--blue" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>Create your vault</h2>
       <p class="hint">
-        Pick a passphrase. It encrypts everything you store here (AES-256-GCM, key
-        derived with PBKDF2). It is never saved anywhere &mdash; which means
-        <strong>nobody, including this extension, can recover your data if you forget it</strong>.
+        Encrypts everything here. It is never stored, so
+        <strong>nobody &mdash; including this extension &mdash; can recover your data if you forget it</strong>.
       </p>
 
       <div class="stack">
@@ -51,7 +50,7 @@
 
     <!-- ============ VIEW B: vault exists, locked ============ -->
     <section id="lockedView" class="hidden">
-      <h2>Vault locked <span class="badge locked">Locked</span></h2>
+      <h2><span class="sec-icon tile--amber" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>Vault locked <span class="badge locked">Locked</span></h2>
       <p class="hint">Enter your passphrase to decrypt the vault for this session.</p>
 
       <div class="field-group u-narrow">
@@ -72,8 +71,8 @@
 
     <!-- ============ VIEW C: unlocked, the editor ============ -->
     <section id="unlockedView" class="hidden">
-      <h2>Your details <span class="badge unlocked">Unlocked</span></h2>
-      <p class="hint">Autofill pulls from these. Nothing is written to disk until you press Save.</p>
+      <h2><span class="sec-icon tile--blue" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>Your details <span class="badge unlocked">Unlocked</span></h2>
+      <p class="hint">Autofill pulls from these. Nothing reaches disk until you press Save.</p>
 
       <h3>Personal fields</h3>
       <div class="grid">
@@ -150,11 +149,9 @@
 
     <!-- ============ Image tool (Phase 3) ============ -->
     <section id="imageView" class="hidden">
-      <h2>Image tool</h2>
+      <h2><span class="sec-icon tile--violet" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span>Image tool</h2>
       <p class="hint">
-        Hit a portal's exact spec: resize to the dimension limit, then search JPEG
-        quality until the file lands inside the required KB band &mdash; not just
-        under a maximum. Runs entirely on this device.
+        Lands your image inside a portal's exact KB band, not just under a maximum.
       </p>
 
       <div class="preset-row">
@@ -224,12 +221,10 @@
 
     <!-- ============ OCR (Phase 4) ============ -->
     <section id="ocrView" class="hidden">
-      <h2>Read an ID image</h2>
+      <h2><span class="sec-icon tile--teal" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 9h7M7 12h10M7 15h5"/></svg></span>Read an ID image</h2>
       <p class="hint">
-        Recognises text on a PAN card, Aadhaar or marksheet and suggests values for
-        your fields. The engine, its WebAssembly core and the English language data
-        all ship inside this extension &mdash; nothing is uploaded, and it works offline.
-        The first run loads about 7&nbsp;MB from local disk and takes a few seconds.
+        Reads a PAN card, Aadhaar or marksheet and suggests field values.
+        Fully on-device &mdash; the first run takes a few seconds to warm up.
       </p>
 
       <div class="field-group">
@@ -250,9 +245,8 @@
 
         <h3>Suggested fields</h3>
         <p class="hint">
-          Nothing is saved until you press Apply, and Apply only fills the form
-          above &mdash; you still have to press &ldquo;Save vault&rdquo;. Edit anything
-          that is wrong; OCR misreads are normal.
+          Apply fills the form above; you still press Save vault. Edit anything wrong
+          &mdash; misreads are normal.
         </p>
         <div id="ocrFields"></div>
 
@@ -270,10 +264,10 @@
 
     <!-- ============ Taught site mappings (Phase 2 follow-up) ============ -->
     <section id="mappingsView" class="hidden">
-      <h2>Taught site mappings</h2>
+      <h2><span class="sec-icon tile--amber" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.4 5.2 5.6.7-4.2 3.9 1.1 5.6L12 15.7 7.1 18.4l1.1-5.6L4 8.9l5.6-.7z"/></svg></span>Taught site mappings</h2>
       <p class="hint">
-        Corrections you saved with &ldquo;Teach fields&rdquo;. These hold a hostname, a
-        CSS selector and a field <em>name</em> &mdash; never a value.
+        Corrections you saved with Teach. These store a field <em>name</em> and where to
+        find it &mdash; never a value.
       </p>
       <div id="mappingsList"></div>
     </section>
@@ -281,11 +275,10 @@
     <!-- ============ Backup (Phase 5) - visible in every state, because
          importing is what you need after a reinstall, when no vault exists ============ -->
     <section id="backupView">
-      <h2>Backup</h2>
+      <h2><span class="sec-icon tile--green" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></span>Backup</h2>
       <p class="hint">
-        The backup file is the <em>encrypted</em> vault, byte for byte &mdash; the same
-        ciphertext that sits in storage. It can only be opened with the passphrase
-        that was in force when you exported it. Keep it somewhere you control.
+        The backup file is the encrypted vault itself. It opens only with the
+        passphrase you exported it under.
       </p>
 
       <div class="actions u-mt-0">
@@ -295,8 +288,7 @@
 
       <h3>Restore</h3>
       <p class="hint">
-        Importing <strong>replaces</strong> the vault on this device. You will need the
-        passphrase that backup was made with &mdash; not your current one, if they differ.
+        <strong>Replaces</strong> the vault on this device, and needs that backup's passphrase.
       </p>
       <div class="field-group">
         <label for="importFile">Backup file</label>
@@ -308,9 +300,9 @@
     </section>
 
     <!-- ============ Settings (not secret, always visible) ============ -->
-    <section>
-      <h2>Settings</h2>
-      <p class="hint">Preferences only &mdash; no personal data. Stored unencrypted in <code>chrome.storage.local</code>.</p>
+    <section id="settingsView">
+      <h2><span class="sec-icon tile--rose" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-6M4 11V3M12 21v-9M12 8V3M20 21v-4M20 13V3M1 15h6M9 8h6M17 17h6"/></svg></span>Settings</h2>
+      <p class="hint">Preferences only &mdash; no personal data.</p>
 
       <div class="field-group">
         <label for="autoLock">Auto-lock the vault after (minutes idle)</label>
@@ -329,17 +321,6 @@
       </div>
     </section>
 
-    <section>
-      <h2>Build progress</h2>
-      <ul class="roadmap">
-        <li class="done">Phase 0 &mdash; scaffold &#10003;</li>
-        <li class="done">Phase 1 &mdash; encrypted vault &#10003;</li>
-        <li class="done">Phase 2 &mdash; autofill engine &#10003;</li>
-        <li class="done">Phase 3 &mdash; resize to portal spec &#10003;</li>
-        <li class="done">Phase 4 &mdash; OCR auto-extract &#10003;</li>
-        <li class="done">Phase 5 &mdash; idle lock, backup, polish &#10003;</li>
-      </ul>
-    </section>
   </div>
 
   <script type="module" src="options.js"></script>

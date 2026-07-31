@@ -22,7 +22,9 @@ let statusTimer;
 function setStatus(text, kind = '', autoClearMs = 0) {
   clearTimeout(statusTimer);
   statusEl.textContent = text;
-  statusEl.className = kind;
+  // Keep the base class: the colours are defined as .status.ok / .err / .warn,
+  // so dropping "status" here would leave the text unstyled.
+  statusEl.className = ['status', kind].filter(Boolean).join(' ');
   if (text && autoClearMs) statusTimer = setTimeout(() => setStatus(''), autoClearMs);
 }
 
@@ -71,9 +73,9 @@ async function boot() {
 
   if (restricted) {
     setStatus('Chrome does not allow extensions to run on this page.', 'warn');
-  } else if (!unlocked) {
-    setStatus('Unlock the vault to enable filling.', 'warn');
   }
+  // No "vault is locked" status here — #lockedNote above already says it, and
+  // two copies of the same sentence reads as a bug.
 }
 
 // --- Injection --------------------------------------------------------------
@@ -183,6 +185,15 @@ teachBtn.addEventListener('click', async () => {
 document.getElementById('optionsLink').addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
 });
+
+// Feature tiles: open the vault page scrolled to that section. The hash is read
+// by options.js once the right view has rendered.
+for (const tile of document.querySelectorAll('[data-open]')) {
+  tile.addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL(`options.html#${tile.dataset.open}`) });
+    window.close();
+  });
+}
 
 lockLink.addEventListener('click', async () => {
   // Dropping the session cache is enough: the key itself was never here.

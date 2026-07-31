@@ -139,6 +139,22 @@ async function boot() {
     showView('locked');
     $('unlockPass').focus();
   }
+  revealHashTarget();
+}
+
+/**
+ * The popup's feature tiles open options.html#someSection. Scroll there once
+ * the right view has rendered — but never steal focus from the passphrase box,
+ * which is the only thing that matters while locked.
+ */
+function revealHashTarget() {
+  const id = location.hash.slice(1);
+  if (!id) return;
+
+  const target = document.getElementById(id);
+  if (!target || target.classList.contains('hidden')) return;
+
+  requestAnimationFrame(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 }
 
 // ============================================================================
@@ -242,6 +258,7 @@ $('unlockBtn').addEventListener('click', async () => {
     showView('unlocked');
     await publishSession();
     updateUsage();
+    revealHashTarget();   // honour a #section the popup asked for, now it exists
   } catch (err) {
     setStatus(status, err.message, 'err', 5000);
     $('unlockPass').select();
@@ -374,7 +391,9 @@ function setDirty(value) {
 }
 
 // Any edit to a standard field marks the vault dirty.
-views.unlocked.addEventListener('input', (e) => {
+// NB: `views.unlocked` is an ARRAY of sections, not an element — listen on the
+// section that actually holds the fields.
+$('unlockedView').addEventListener('input', (e) => {
   if (e.target.matches('[data-field]')) setDirty(true);
 });
 
