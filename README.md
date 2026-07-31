@@ -11,7 +11,9 @@ works offline.
 
 ## Install
 
-There is no Web Store listing; load it unpacked.
+There is no Web Store listing; load it unpacked. For the full walkthrough —
+first run, verifying each feature, the development loop and troubleshooting —
+see **[run.md](run.md)**.
 
 1. Open `chrome://extensions`
 2. Turn on **Developer mode** (top right)
@@ -153,7 +155,9 @@ lib/  crypto.js        PBKDF2 + AES-GCM
       image.js         resize and file-size band search
       ocr.js           tesseract.js configuration and text heuristics
 vendor/                third-party code, local copies only (see vendor/README.md)
-test/form.html         a form that grades a fill, including the safety cases
+styles/one-ui.css      the design tokens and components (see DESIGN.md)
+test/  run.mjs         runs every suite; *.test.mjs are the suites
+       form.html       a form that grades a fill, including the safety cases
 ```
 
 Project rules are in [CLAUDE.md](CLAUDE.md); the phase-by-phase build log is in
@@ -161,7 +165,17 @@ Project rules are in [CLAUDE.md](CLAUDE.md); the phase-by-phase build log is in
 
 ## Testing
 
-Serve the test fixture and fill it:
+Automated checks — cryptography, field matching, the image band search, OCR
+heuristics and backup envelopes:
+
+```bash
+npm test          # or: node test/run.mjs
+```
+
+They run under Node's Web Crypto, the same API the browser provides. They do not
+cover anything DOM- or Chrome-shaped; that needs the browser.
+
+For autofill, serve the fixture and fill it:
 
 ```bash
 python3 -m http.server 8000

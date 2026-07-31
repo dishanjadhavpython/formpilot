@@ -1,0 +1,12 @@
+{
+  "name": "formpilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first Chrome/Edge extension: encrypted vault, form autofill, resize-to-spec, OCR.",
+  "type": "module",
+  "scripts": {
+    "test": "node test/run.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
