@@ -104,6 +104,52 @@ transparency behind body text • hard-coded values outside the token file • c
 
 ---
 
+## 6b. Liquid Glass material layer
+
+`styles/liquid-glass.css`, loaded **after** `one-ui.css`. One UI owns layout,
+type and colour; this file owns one thing: the material used by floating layers.
+
+| Surface | Classes |
+|---|---|
+| Bottom action bar (the hero) | `.lg .lg--refract` |
+| Sheets / dialogs | `.sheet` (material applied directly) or `.lg .lg--thick` |
+| Popovers | `.lg .lg--popover` |
+| **Content cards, sections, inputs** | **none — solid** |
+
+Cards are deliberately solid. Body copy over a live backdrop is the fastest way
+to fail WCAG AA, and these cards carry every label and value in the app. The
+ambient `body::before` glows exist so the *floating* layers have something worth
+refracting.
+
+**Refraction is two independent things.** `.lg--refract::before` runs the SVG
+filter on the sheen only — that works wherever `filter: url()` does, and can
+never smear text because the text is in a different layer. True backdrop
+refraction sits behind `@supports (backdrop-filter: url(#lg-refract))` as a
+progressive enhancement.
+
+**`.lg` must not set `position`.** This file loads after one-ui.css, so a
+`position: relative` on `.lg` beats `.bottom-bar { position: sticky }` at equal
+specificity and silently un-floats the hero surface — it drops to its natural
+place partway down the document. Every current host is already positioned; a
+static host adds `.lg--block`.
+
+**View transitions.** `runViewTransition()` in options.js. It skips the first
+render (nothing to cross-fade from, and starting mid-load is when the UA aborts
+on timeout) and honours `prefers-reduced-motion`. Its `ready` and `finished`
+promises **reject** on a skipped transition — routine, but unhandled they trip
+the fatal-error banner, so both are explicitly caught.
+
+**Accessibility, all three honoured:** `prefers-reduced-transparency` goes fully
+solid, `prefers-contrast: more` thickens tint and border, `prefers-reduced-motion`
+disables animation including view transitions. A root `.lg-tinted` / `.lg-clear`
+toggle is exposed in Settings and mirrored by the popup.
+
+**`--on-accent`.** The dark-mode accent is a *light* blue, so white on it
+measured 3.03:1 — under AA for 14px text. Filled buttons now use dark ink in
+dark mode (6.49:1).
+
+---
+
 ## 7. As built — decisions worth knowing
 
 Notes from applying this to the existing extension. Read before changing the CSS.

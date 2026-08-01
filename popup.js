@@ -51,7 +51,16 @@ function isRestricted(url = '') {
 
 // --- Boot -------------------------------------------------------------------
 
+/** Mirror the Tinted / Clear choice the options page stores. */
+async function applyGlassMode() {
+  const { settings } = await chrome.storage.local.get('settings');
+  const mode = settings?.glassMode ?? 'tinted';
+  document.documentElement.classList.toggle('lg-clear', mode === 'clear');
+  document.documentElement.classList.toggle('lg-tinted', mode !== 'clear');
+}
+
 async function boot() {
+  await applyGlassMode();
   const tab = await activeTab();
   const host = safeHost(tab?.url);
   siteEl.textContent = host ? `Current tab: ${host}` : 'No active page.';

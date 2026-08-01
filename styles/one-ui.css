@@ -19,6 +19,7 @@
   --glass-bg:rgba(255,255,255,0.72); --glass-border:rgba(255,255,255,0.55);
   --text:#17181C;          --text-2:#63676E;         --text-3:#9AA0A8;
   --accent:#1B6FF3;        --accent-press:#135FDB;   --accent-soft:rgba(27,111,243,0.12);
+  --on-accent:#FFFFFF;     /* ink on a filled accent surface — see below */
   --success:#1DAA61;       --danger:#E5484D;         --divider:rgba(0,0,0,0.06);
   --warn:#B26C00;          --warn-soft:rgba(178,108,0,0.12);
   --danger-soft:rgba(229,72,77,0.12);
@@ -68,6 +69,9 @@
     --glass-bg:rgba(28,30,34,0.62); --glass-border:rgba(255,255,255,0.08);
     --text:#F2F3F5;        --text-2:#A9AEB6;         --text-3:#6E747C;
     --accent:#4C93FF;      --accent-press:#3B82F0;   --accent-soft:rgba(76,147,255,0.16);
+    /* The dark accent is a LIGHT blue, so white on it is only 3.0:1 — under
+       WCAG AA for 14px text. Dark ink on it measures ~5.9:1. */
+    --on-accent:#0A0B0D;
     --divider:rgba(255,255,255,0.08);
     --warn:#E0A33A;        --warn-soft:rgba(224,163,58,0.16);
     --danger:#FF6369;      --danger-soft:rgba(255,99,105,0.16);
@@ -189,12 +193,9 @@ code {
   gap: var(--s2);
   margin: var(--s5) 0 0;
   padding: var(--s2) var(--s3);
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--glass-border);
   border-radius: var(--r-pill);
-  box-shadow: var(--shadow);
+  /* Material (tint, blur, rim, sheen, shadow) comes from .lg in
+     styles/liquid-glass.css — this rule owns geometry only. */
 }
 .bottom-bar .btn { flex: 1; }
 .bottom-bar .btn--auto { flex: 0 0 auto; padding-inline: var(--s5); }
@@ -211,7 +212,7 @@ button, .btn {
   padding: 0 var(--s6);
   font: var(--t-label);
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: none;
   border-radius: var(--r-pill);
@@ -223,7 +224,7 @@ button:active, .btn:active { transform: scale(0.97); background: var(--accent-pr
 button:disabled, .btn:disabled { opacity: .45; cursor: default; transform: none; }
 button:disabled:hover, .btn:disabled:hover { background: var(--accent); }
 
-.btn--primary { background: var(--accent); color: #fff; }
+.btn--primary { background: var(--accent); color: var(--on-accent); }
 .btn--tonal, button.secondary, .btn--tonal:hover, button.secondary:hover {
   background: var(--accent-soft);
   color: var(--accent);
@@ -260,12 +261,13 @@ button.tiny, .btn--sm {
 
 /* ---------- 6. Card ------------------------------------------------------ */
 
+/* SOLID on purpose. Body copy over a live backdrop is the fastest way to fail
+   WCAG AA, and these cards carry every field label and value in the app. Glass
+   is reserved for floating layers — see styles/liquid-glass.css. */
 .card, section {
   position: relative;
-  background: var(--card-bg);
-  -webkit-backdrop-filter: var(--blur);
-  backdrop-filter: var(--blur);
-  border: 1px solid var(--card-border);
+  background: var(--surface);
+  border: 1px solid var(--divider);
   border-radius: var(--r-lg);
   padding: var(--s5);
   box-shadow: var(--shadow-soft);
@@ -714,10 +716,8 @@ table.maps td:last-child { width: 1%; white-space: nowrap; }
   min-height: 0;
   padding: var(--s3);
   text-align: left;
-  background: var(--card-bg);
-  -webkit-backdrop-filter: var(--blur);
-  backdrop-filter: var(--blur);
-  border: 1px solid var(--card-border);
+  background: var(--surface);
+  border: 1px solid var(--divider);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-soft);
   color: var(--text);
@@ -725,7 +725,7 @@ table.maps td:last-child { width: 1%; white-space: nowrap; }
   animation: rise 380ms var(--ease) both;
   transition: transform .18s var(--ease), box-shadow .18s var(--ease), background .18s var(--ease);
 }
-.tile:hover { background: var(--card-bg); transform: translateY(-2px); box-shadow: var(--shadow); }
+.tile:hover { background: var(--surface-2); transform: translateY(-2px); box-shadow: var(--shadow); }
 .tile:active { transform: scale(0.975); }
 
 .tile__icon {

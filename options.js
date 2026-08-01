@@ -100,7 +100,18 @@ const EMAIL_LABELS = {
   other: 'Other'
 };
 
-const SETTINGS_DEFAULTS = { autoLockMinutes: 5, highlightFills: true };
+const SETTINGS_DEFAULTS = { autoLockMinutes: 5, highlightFills: true, glassMode: 'tinted' };
+
+/**
+ * Tinted / Clear, applied to <html> so the liquid-glass tokens can respond.
+ * The OS "reduce transparency" setting overrides both — that media query wins
+ * in CSS regardless of which class is set.
+ */
+function applyGlassMode(mode) {
+  const root = document.documentElement;
+  root.classList.toggle('lg-clear', mode === 'clear');
+  root.classList.toggle('lg-tinted', mode !== 'clear');
+}
 
 // --- In-memory session state (never persisted) ------------------------------
 
@@ -144,11 +155,55 @@ function setStatus(el, text, kind = '', autoClearMs = 3000) {
   }
 }
 
-function showView(name) {
-  for (const [key, sections] of Object.entries(views)) {
-    for (const el of sections) el.classList.toggle('hidden', key !== name);
+// Which field should hold focus once a view is on screen.
+const VIEW_FOCUS = { setup: 'newPass', locked: 'unlockPass' };
+
+/**
+ * Run a DOM update inside a View Transition when the browser offers one, and
+ * plainly when it does not. `done` fires only after the DOM has actually
+ * changed — see showView for why that matters.
+ */
+let viewsRendered = false;   // the first paint is not a "transition"
+
+function runViewTransition(update, done) {
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Skip on the very first render: there is no previous state to cross-fade
+  // from, the card entrance animation is already playing, and starting a
+  // transition mid-load is exactly when the UA aborts it on timeout.
+  if (!viewsRendered || reducedMotion || typeof document.startViewTransition !== 'function') {
+    viewsRendered = true;
+    update();
+    done?.();
+    return;
   }
-  if (name === 'unlocked') renderMappings();
+
+  const transition = document.startViewTransition(update);
+
+  // `ready` and `finished` REJECT when a transition is skipped or times out —
+  // routine, not exceptional. Left unhandled they surface as unhandledrejection
+  // and trip the fatal-error banner, which is how this was found.
+  transition.ready.catch(() => {});
+  transition.finished.catch(() => {});
+  transition.updateCallbackDone.then(done, done);
+}
+
+function showView(name) {
+  const update = () => {
+    for (const [key, sections] of Object.entries(views)) {
+      for (const el of sections) el.classList.toggle('hidden', key !== name);
+    }
+    if (name === 'unlocked') renderMappings();
+  };
+
+  // Callers focus the passphrase box immediately after calling this. Inside a
+  // view transition the class toggle happens in a callback, so that focus would
+  // land on a still-hidden element and silently do nothing — re-apply it once
+  // the DOM has really changed.
+  runViewTransition(update, () => {
+    const id = VIEW_FOCUS[name];
+    if (id) $(id).focus();
+  });
 }
 
 function formatBytes(n) {
@@ -882,7 +937,11 @@ async function loadSettings() {
   const merged = { ...SETTINGS_DEFAULTS, ...(settings ?? {}) };
   $('autoLock').value = merged.autoLockMinutes;
   $('highlight').checked = merged.highlightFills;
+  $('glassMode').value = merged.glassMode;
+  applyGlassMode(merged.glassMode);
 }
+
+$('glassMode').addEventListener('change', () => applyGlassMode($('glassMode').value));
 
 $('saveSettingsBtn').addEventListener('click', async () => {
   const status = $('settingsStatus');
@@ -898,9 +957,11 @@ $('saveSettingsBtn').addEventListener('click', async () => {
     settings: {
       ...(settings ?? {}),
       autoLockMinutes: minutes,
-      highlightFills: $('highlight').checked
+      highlightFills: $('highlight').checked,
+      glassMode: $('glassMode').value
     }
   });
+  applyGlassMode($('glassMode').value);
 
   // Re-arm with the new timeout rather than waiting for the old one to expire.
   chrome.runtime.sendMessage({ type: 'ACTIVITY' }).catch(() => {});

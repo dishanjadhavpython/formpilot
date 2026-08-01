@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>FormPilot</title>
   <link rel="stylesheet" href="styles/one-ui.css">
+  <link rel="stylesheet" href="styles/liquid-glass.css">
   <style>
     /* Popup shell only — every value comes from the tokens in one-ui.css. */
     body {
@@ -44,6 +45,21 @@
   </style>
 </head>
 <body>
+  <!-- Liquid Glass refraction. feTurbulence makes noise, the blur softens it into
+       smooth swells rather than static, and feDisplacementMap pushes pixels along
+       it. Scale is deliberately modest: this warps only the ::before sheen layer,
+       never text, but a large scale still reads as mush at the rim. -->
+  <svg class="lg-defs" aria-hidden="true" focusable="false" width="0" height="0">
+    <filter id="lg-refract" x="-25%" y="-25%" width="150%" height="150%"
+            color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.009 0.014"
+                    numOctaves="2" seed="7" result="noise"/>
+      <feGaussianBlur in="noise" stdDeviation="7" result="swell"/>
+      <feDisplacementMap in="SourceGraphic" in2="swell" scale="40"
+                         xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
+
   <header class="popup-head">
     <img src="icons/icon48.png" alt="">
     <h1>FormPilot</h1>
@@ -100,7 +116,7 @@
   </div>
 
   <!-- Primary action, within thumb reach. -->
-  <div class="bottom-bar">
+  <div class="bottom-bar lg lg--refract">
     <button id="teachBtn" class="btn btn--tonal btn--auto" type="button">Teach</button>
     <button id="fillBtn" class="btn btn--primary" type="button">Fill this form</button>
   </div>

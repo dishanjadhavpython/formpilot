@@ -1,0 +1,289 @@
+/* ==========================================================================
+   FormPilot — Liquid Glass material layer
+   Loaded AFTER styles/one-ui.css and layered on top of it. One UI owns the
+   layout, type and colour system; this file owns one thing only: the material
+   used by FLOATING layers.
+
+   WHERE GLASS IS ALLOWED
+     bottom action bar   .lg .lg--refract   the hero — glass + sheen + refraction
+     sheets / dialogs    .lg .lg--thick     more blur, deeper shadow
+     popovers            .lg .lg--popover
+   WHERE IT IS NOT
+     content cards, sections, inputs, selects, textareas. Those stay SOLID.
+     Text legibility beats material every time, and body copy over a live
+     backdrop is the single fastest way to fail WCAG AA.
+
+   Everything is a token. To dial the whole effect down, lower --lg-alpha and
+   --lg-blur; to remove it, set .lg-clear on <html> or turn on the OS
+   "reduce transparency" setting.
+   ========================================================================== */
+
+/* ---------- 1. Material tokens ------------------------------------------- */
+
+:root {
+  /* Tint: the glass's own colour, laid over whatever is behind it. */
+  --lg-alpha: 0.55;
+  --lg-tint: rgba(255, 255, 255, var(--lg-alpha));
+  --lg-tint-2: rgba(255, 255, 255, calc(var(--lg-alpha) * 0.55));
+
+  /* Optics */
+  --lg-blur: 24px;
+  --lg-blur-thick: 40px;
+  --lg-sat: 180%;
+  --lg-brightness: 1.06;
+
+  /* Edges: a hairline border plus inset rims read as a physical bevel. */
+  --lg-border: rgba(255, 255, 255, 0.62);
+  --lg-rim-top: rgba(255, 255, 255, 0.75);
+  --lg-rim-bottom: rgba(255, 255, 255, 0.18);
+
+  /* Specular sheen laid on ::before. */
+  --lg-sheen: rgba(255, 255, 255, 0.55);
+  --lg-sheen-opacity: 0.9;
+
+  --lg-shadow: 0 10px 30px rgba(20, 23, 28, 0.14), 0 2px 6px rgba(20, 23, 28, 0.08);
+  --lg-shadow-thick: 0 24px 60px rgba(20, 23, 28, 0.22), 0 4px 12px rgba(20, 23, 28, 0.12);
+
+  /* How far the SVG displacement warps the sheen. Kept modest on purpose —
+     large values read as mush at the rim.
+     NOTE: this token documents the value; it cannot drive it. SVG presentation
+     attributes do not read CSS custom properties, so feDisplacementMap's
+     scale="40" in popup.html / options.html must be edited to match. */
+  --lg-refract-scale: 40;
+
+  /* Motion */
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --lg-dur-fast: 160ms;
+  --lg-dur-base: 260ms;
+  --lg-dur-slow: 420ms;
+  --dur: var(--lg-dur-base);          /* One UI's generic duration follows suit */
+  --lg-press: 0.96;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --lg-alpha: 0.42;
+    --lg-tint: rgba(30, 32, 38, var(--lg-alpha));
+    --lg-tint-2: rgba(30, 32, 38, calc(var(--lg-alpha) * 0.6));
+
+    --lg-brightness: 1.18;
+
+    --lg-border: rgba(255, 255, 255, 0.14);
+    --lg-rim-top: rgba(255, 255, 255, 0.22);
+    --lg-rim-bottom: rgba(255, 255, 255, 0.05);
+
+    --lg-sheen: rgba(255, 255, 255, 0.20);
+    --lg-sheen-opacity: 0.75;
+
+    --lg-shadow: 0 10px 34px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+    --lg-shadow-thick: 0 26px 70px rgba(0, 0, 0, 0.7), 0 4px 14px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* ---------- 2. Root toggle: Tinted / Clear -------------------------------- */
+/* Set by options.js and popup.js from settings.glassMode. Tinted is default. */
+
+:root.lg-tinted  { --lg-alpha: 0.62; --lg-sheen-opacity: 1;   --lg-blur: 26px; }
+:root.lg-clear   { --lg-alpha: 0.30; --lg-sheen-opacity: 0.5; --lg-blur: 18px; }
+
+@media (prefers-color-scheme: dark) {
+  :root.lg-tinted { --lg-alpha: 0.52; }
+  :root.lg-clear  { --lg-alpha: 0.24; }
+}
+
+/* ---------- 3. The material ---------------------------------------------- */
+
+/*
+   NOTE: no `position` here, deliberately.
+   This file loads after one-ui.css, so a `position: relative` on .lg would win
+   the cascade against `.bottom-bar { position: sticky }` at equal specificity —
+   which silently un-floats the hero surface and drops it to its natural spot
+   partway down the document. Every host of .lg is already positioned (the bar
+   is sticky, sheets are fixed), which is what the ::before sheen needs. A
+   static host should add .lg--block.
+*/
+.lg,
+.sheet {
+  isolation: isolate;
+  background: var(--lg-tint);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(var(--lg-brightness));
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(var(--lg-brightness));
+  border: 1px solid var(--lg-border);
+  border-radius: var(--r-pill);
+  box-shadow:
+    inset 0 1px 0 var(--lg-rim-top),
+    inset 0 -1px 0 var(--lg-rim-bottom),
+    var(--lg-shadow);
+}
+
+/* Content sits above the sheen. */
+.lg > *, .sheet > * { position: relative; z-index: 1; }
+
+/* Specular sheen: a bright top edge falling away, plus a soft crown. */
+.lg::before,
+.sheet::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--lg-sheen-opacity);
+  background:
+    linear-gradient(180deg, var(--lg-sheen) 0%, transparent 46%),
+    radial-gradient(130% 120% at 50% -30%, var(--lg-tint-2) 0%, transparent 62%);
+}
+
+/* ---------- 4. Refraction ------------------------------------------------- */
+/*
+   Two independent things, because browser support differs:
+
+   (a) True backdrop refraction, gated on the browser actually reporting
+       support for an SVG filter inside backdrop-filter. Chrome 140 does report
+       it and applies the filter; older engines do not, hence the @supports.
+       Treat it as an enhancement, never as the load-bearing effect.
+
+   (b) A displaced sheen, which works everywhere `filter: url()` does (all of
+       them). The SVG filter warps only the ::before highlight — never the
+       element's text, which lives in a separate layer — so nothing legible
+       can smear no matter what --lg-refract-scale is set to.
+*/
+
+.lg--refract::before {
+  filter: url(#lg-refract);
+}
+
+@supports (backdrop-filter: url(#lg-refract)) {
+  .lg--refract {
+    -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) url(#lg-refract);
+    backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) url(#lg-refract);
+  }
+}
+
+/* ---------- 5. Variants --------------------------------------------------- */
+
+/* Sheets and dialogs: larger surface, so more blur and a deeper shadow. */
+.lg--thick,
+.sheet {
+  -webkit-backdrop-filter: blur(var(--lg-blur-thick)) saturate(var(--lg-sat)) brightness(var(--lg-brightness));
+  backdrop-filter: blur(var(--lg-blur-thick)) saturate(var(--lg-sat)) brightness(var(--lg-brightness));
+  box-shadow:
+    inset 0 1px 0 var(--lg-rim-top),
+    inset 0 -1px 0 var(--lg-rim-bottom),
+    var(--lg-shadow-thick);
+}
+
+/* For a host that is not already positioned — the sheen needs a containing block. */
+.lg--block { position: relative; }
+
+.lg--popover {
+  position: relative;
+  border-radius: var(--r-lg);
+  box-shadow:
+    inset 0 1px 0 var(--lg-rim-top),
+    var(--lg-shadow);
+}
+
+/* ---------- 6. Motion ----------------------------------------------------- */
+
+/* Press feedback. Transform only — never blur, which forces a repaint of the
+   whole backdrop and is the main source of jank on a glass surface. */
+button:active, .btn:active, .tile:active {
+  transform: scale(var(--lg-press));
+}
+button, .btn, .tile {
+  transition:
+    transform var(--lg-dur-fast) var(--spring),
+    background var(--lg-dur-fast) var(--ease),
+    box-shadow var(--lg-dur-fast) var(--ease),
+    opacity var(--lg-dur-fast) var(--ease);
+}
+
+/* Materialize: opacity + transform only. */
+@keyframes lg-materialize {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+.lg-materialize { animation: lg-materialize var(--lg-dur-base) var(--spring) both; }
+
+@keyframes lg-sheet-in {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: none; }
+}
+.sheet { animation: lg-sheet-in var(--lg-dur-slow) var(--spring) both; }
+
+/* Scroll-edge fade. Only ever put this on an element that genuinely scrolls —
+   on a normal flex column it does not fade, it just clips the first and last
+   20px of content. The one real scroll container here is the OCR text panel. */
+.lg-scroll-fade {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 20px,
+                                      #000 calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 20px,
+                              #000 calc(100% - 20px), transparent 100%);
+}
+
+/* View Transitions: screen changes cross-fade with a slight rise. Only
+   opacity and transform are animated. */
+::view-transition-old(root) {
+  animation: lg-vt-out var(--lg-dur-base) var(--ease) both;
+}
+::view-transition-new(root) {
+  animation: lg-vt-in var(--lg-dur-base) var(--ease) both;
+}
+@keyframes lg-vt-out { to   { opacity: 0; transform: translateY(-6px); } }
+@keyframes lg-vt-in  { from { opacity: 0; transform: translateY(8px); } }
+
+/* ---------- 7. Accessibility --------------------------------------------- */
+
+/* Reduced transparency: go fully solid. No backdrop sampling, no sheen. */
+@media (prefers-reduced-transparency: reduce) {
+  .lg, .lg--thick, .lg--refract {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: var(--divider);
+    box-shadow: var(--shadow);
+  }
+  .lg::before { display: none; }
+}
+
+/* Increased contrast: denser tint, stronger border, quieter sheen. */
+@media (prefers-contrast: more) {
+  :root {
+    --lg-alpha: 0.92;
+    --lg-border: rgba(0, 0, 0, 0.55);
+    --lg-sheen-opacity: 0.25;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --lg-alpha: 0.94;
+      --lg-tint: rgba(18, 19, 22, var(--lg-alpha));
+      --lg-border: rgba(255, 255, 255, 0.55);
+    }
+  }
+  .lg { border-width: 2px; }
+}
+
+/* Reduced motion: nothing moves. one-ui.css already disables animation and
+   transition globally; this additionally suppresses view transitions, which
+   are driven by the UA and not covered by that rule. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+  button:active, .btn:active, .tile:active { transform: none; }
+}
+
+/* ---------- 8. The SVG filter host --------------------------------------- */
+/* Present in the DOM but takes no space and is invisible to assistive tech. */
+
+.lg-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}

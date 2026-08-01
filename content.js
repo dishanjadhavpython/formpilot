@@ -250,15 +250,30 @@ if (!globalThis.__formPilotContentLoaded) {
           --font:"Inter","SamsungOne","system-ui",-apple-system,"Segoe UI",Roboto,sans-serif;
         }
         :host, * { box-sizing: border-box; }
+        /* Liquid Glass popover. Mirrors styles/liquid-glass.css — a Shadow
+           DOM on someone else's page cannot reach our stylesheet or tokens. */
         .card {
+          position: relative;
+          isolation: isolate;
           font: 450 13px/1.45 var(--font);
-          background: var(--accent); color: #fff;
+          background: color-mix(in srgb, var(--accent) 82%, transparent);
+          -webkit-backdrop-filter: blur(24px) saturate(180%);
+          backdrop-filter: blur(24px) saturate(180%);
+          border: 1px solid rgba(255,255,255,0.35);
+          color: #fff;
           padding: var(--s3) var(--s4);
           border-radius: var(--r-lg);
-          box-shadow: var(--shadow);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), var(--shadow);
           max-width: 300px;
         }
-        .card.teach { background: var(--surface); }
+        .card::before {
+          content: "";
+          position: absolute; inset: 0; z-index: 0;
+          border-radius: inherit; pointer-events: none;
+          background: linear-gradient(180deg, rgba(255,255,255,0.28) 0%, transparent 46%);
+        }
+        .card > * { position: relative; z-index: 1; }
+        .card.teach { background: color-mix(in srgb, var(--surface) 80%, transparent); }
         .card strong { display: block; font-size: 14px; font-weight: 600; margin-bottom: 2px; }
         .card .muted { opacity: .85; }
         select, button {
