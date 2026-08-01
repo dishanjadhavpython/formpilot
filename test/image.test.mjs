@@ -94,5 +94,42 @@ sourceSpec = { w: 3000, h: 4000, complexity: 1 };
 r = await fitToBand(file(6_200_000), preset('photo'));
 ok('attempts stayed reasonable', r.attempts <= 40, `${r.attempts} encodes`);
 
+console.log('\n8. drawFileInCanvas() may hand back an OffscreenCanvas (real Chrome/Edge/Brave do)');
+//
+// OffscreenCanvas has convertToBlob(), not toBlob() - and when the source image
+// already fits the preset (no rung needs to scale it down), scaleCanvas() hands
+// the untouched source straight to toBlob(). If that source came from
+// drawFileInCanvas() as an OffscreenCanvas, encoding must still work.
+function makeOffscreenCanvas(w, h, complexity = 1) {
+  const canvas = {
+    width: w, height: h, _complexity: complexity,
+    getContext() {
+      return {
+        set imageSmoothingEnabled(v) {}, set imageSmoothingQuality(v) {}, set fillStyle(v) {},
+        fillRect() {},
+        drawImage(src) { canvas._complexity = src._complexity; }
+      };
+    },
+    // No toBlob() on purpose - real OffscreenCanvas does not have one.
+    convertToBlob({ type, quality }) {
+      const px = canvas.width * canvas.height;
+      const bytes = type === 'image/png'
+        ? px * 3 * canvas._complexity
+        : px * (0.01 + 0.5 * Math.pow(quality ?? 0.92, 1.8)) * canvas._complexity;
+      return Promise.resolve({ size: Math.max(1, Math.round(bytes)), type });
+    }
+  };
+  return canvas;
+}
+
+const realDrawFileInCanvas = bic.drawFileInCanvas;
+// A signature-sized source that already fits the signature preset (<=300px), so
+// baseScale is 1 and scaleCanvas() returns the OffscreenCanvas untouched.
+bic.drawFileInCanvas = async () => [null, makeOffscreenCanvas(300, 100, 0.3)];
+r = await fitToBand(file(50_000, 'sig.jpg'), preset('signature'));
+ok('encodes via convertToBlob when no scaling is needed', r.ok, r.ok ? KB(r.bytes) : r.reason);
+ok('dimensions passed through untouched', r.ok && r.width === 300 && r.height === 100, `${r.width}x${r.height}`);
+bic.drawFileInCanvas = realDrawFileInCanvas;
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

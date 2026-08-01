@@ -1375,6 +1375,11 @@ function renderOcrResult(result) {
 
   $('ocrRaw').textContent = result.text.trim() || '(nothing recognised)';
 
+  // clearOcr() is the only other place that touches this class, and only ever
+  // adds it back - nothing before this line ever revealed the panel, so every
+  // OCR run computed a result the user could never see.
+  $('ocrResult').classList.remove('hidden');
+
   const list = $('ocrFields');
   list.replaceChildren();
 
