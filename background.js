@@ -140,11 +140,16 @@ async function detectForms(tabId, url) {
   try {
     await ensureContentScript(tabId);
 
+    // KEY NAMES ONLY. This message goes to every http(s) page you open while
+    // unlocked, so it must never carry a value - describeVault() strips them,
+    // leaving what counting fields actually needs.
+    const meta = describeVault(vaultData);
+
     const reply = await chrome.tabs.sendMessage(tabId, {
       type: 'DETECT',
-      fields: vaultData.fields ?? {},
-      emails: vaultData.emails ?? [],
-      customFields: vaultData.customFields ?? [],
+      keys: meta.keys,
+      emails: meta.emails,
+      customFields: meta.customFields,
       mappings: host ? (siteMappings[host] ?? {}) : {},
       highlight: settings?.highlightFills !== false,
       showChip: settings?.suggestFills !== false
@@ -155,6 +160,103 @@ async function detectForms(tabId, url) {
     // Restricted page, or the tab navigated away mid-scan. Not an error.
     setBadge(tabId, 0);
   }
+}
+
+// --- Releasing values to a page ---------------------------------------------
+//
+// The chip's Fill button asks for values here, because the content script has
+// none. Everything that makes a fill safe is re-checked at this point rather
+// than assumed from whenever detection ran.
+
+const MAX_RELEASED_KEYS = 60;
+
+/**
+ * Split the session vault into "what a page may know" (key names and labels)
+ * and the values, which stay here until a fill actually needs them.
+ */
+function describeVault(vaultData) {
+  const values = expandValues(vaultData);
+  return {
+    values,
+    keys: Object.keys(values),
+    customFields: (vaultData.customFields ?? [])
+      .filter((field) => field?.label && field?.value)
+      .map((field) => ({ label: field.label })),
+    emails: (vaultData.emails ?? [])
+      .filter((email) => email?.label && email?.value)
+      .map((email) => ({ label: email.label }))
+  };
+}
+
+// A standalone copy of lib/match.js's expandValues. The worker cannot load that
+// file (it is a classic script for the content script's world, and the worker is
+// a module), and duplicating twenty lines beats shipping the vault to a page.
+// Keep in step with expandValues() in lib/match.js.
+function expandValues(vaultData) {
+  const fields = vaultData.fields ?? {};
+  const emails = vaultData.emails ?? [];
+  const customFields = vaultData.customFields ?? [];
+
+  const values = {};
+  for (const [key, value] of Object.entries(fields)) if (value) values[key] = value;
+
+  for (const email of emails) {
+    if (!email?.label || !email?.value) continue;
+    values[`email:${email.label}`] = email.value;
+    values['email:alternate'] ??= email.value;
+  }
+  if (!values.email && emails.length) values.email = emails[0]?.value ?? '';
+
+  const full = (fields.fullName ?? '').trim();
+  if (full) {
+    const parts = full.split(/\s+/);
+    if (parts.length > 1) {
+      values.firstName ??= parts[0];
+      values.lastName ??= parts[parts.length - 1];
+      if (parts.length > 2) values.middleName ??= parts.slice(1, -1).join(' ');
+    } else {
+      values.firstName ??= full;
+    }
+  }
+
+  for (const field of customFields) {
+    if (field.label && field.value) values[`custom:${field.label}`] = field.value;
+  }
+  return values;
+}
+
+/**
+ * Hand a content script the values for the keys it planned, and nothing else.
+ *
+ * @param {string[]} keys   vault key names the page's plan needs
+ * @param {object} sender   the runtime sender, already checked to be ours
+ */
+async function releaseValues(keys, sender) {
+  // Must come from a content script in a real tab, on an ordinary web page.
+  if (!sender?.tab?.id || !/^https?:/i.test(sender.tab.url ?? sender.url ?? '')) {
+    return { ok: false, error: 'Fill can only be requested from a web page.' };
+  }
+
+  const { settings } = await chrome.storage.local.get('settings');
+  if (settings?.suggestFills === false) {
+    return { ok: false, error: 'Form suggestions are switched off.' };
+  }
+
+  const { [SESSION_KEY]: vaultData } = await chrome.storage.session.get(SESSION_KEY);
+  if (!vaultData) return { ok: false, error: 'The vault is locked.' };
+
+  const wanted = (Array.isArray(keys) ? keys : [])
+    .filter((key) => typeof key === 'string' && key.length > 0 && key.length <= 200)
+    .slice(0, MAX_RELEASED_KEYS);
+
+  const all = expandValues(vaultData);
+  const values = {};
+  for (const key of wanted) {
+    if (Object.hasOwn(all, key)) values[key] = all[key];
+  }
+
+  armAutoLock();   // filling is activity
+  return { ok: true, values, highlight: settings?.highlightFills !== false };
 }
 
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
@@ -170,15 +272,52 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   } catch { /* tab already gone */ }
 });
 
+// --- Who is allowed to ask -------------------------------------------------
+//
+// onMessage only ever delivers messages from this extension (no
+// externally_connectable is declared, and web pages cannot reach it at all), but
+// "from this extension" still covers two very different callers: our privileged
+// pages, and a content script living inside somebody else's web page.
+//
+// Resetting the auto-lock clock is a privileged-page job. If a content script
+// could send ACTIVITY, a page that kept it busy would hold the vault unlocked
+// indefinitely - the idle timeout would simply never fire.
+
+function fromOwnExtension(sender) {
+  return sender?.id === chrome.runtime.id;
+}
+
+/** True only for the popup and the options page, never for a content script. */
+function fromExtensionPage(sender) {
+  return fromOwnExtension(sender)
+    && !sender.tab
+    && (sender.url ?? '').startsWith(chrome.runtime.getURL(''));
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!fromOwnExtension(sender)) {
+    sendResponse({ ok: false, error: 'Rejected: unknown sender.' });
+    return false;
+  }
+
   switch (message?.type) {
     case 'ACTIVITY':
       // Any interaction pushes the deadline out. Fire-and-forget.
+      if (!fromExtensionPage(sender)) {
+        sendResponse({ ok: false, error: 'Rejected: a page cannot defer auto-lock.' });
+        return false;
+      }
       armAutoLock();
       sendResponse({ ok: true });
       return false;
 
+    case 'REQUEST_FILL':
+      // The in-page chip asking for the values it is about to type.
+      releaseValues(message.keys, sender).then(sendResponse);
+      return true;
+
     case 'LOCK_NOW':
+      // Locking early is always allowed: it can only ever reduce exposure.
       lockNow(message.reason ?? 'requested').then(() => sendResponse({ ok: true }));
       return true;
 

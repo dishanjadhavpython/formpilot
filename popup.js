@@ -8,6 +8,7 @@
 // script it injects.
 
 const SESSION_KEY = 'vaultData';
+const M = globalThis.FormPilotMatch;   // from lib/match.js, loaded just above
 
 const fillBtn = document.getElementById('fillBtn');
 const teachBtn = document.getElementById('teachBtn');
@@ -120,6 +121,19 @@ async function vaultOrThrow() {
 
 // --- Fill -------------------------------------------------------------------
 
+/** One place that turns a fill outcome into a sentence, for both passes. */
+function reportFill(filled, total, skipped) {
+  if (filled > 0) {
+    setStatus(`Filled ${filled} of ${total}. Review before submitting.`, 'ok');
+  } else if (total === 0) {
+    setStatus('No fillable fields found on this page.', 'warn');
+  } else if (skipped.alreadyFilled > 0) {
+    setStatus(`Filled 0 of ${total} - those fields already had values.`, 'warn');
+  } else {
+    setStatus(`Filled 0 of ${total}. Try "Teach fields" to map them.`, 'warn');
+  }
+}
+
 fillBtn.addEventListener('click', async () => {
   fillBtn.disabled = true;
   setStatus('Scanning the page...');
@@ -133,30 +147,42 @@ fillBtn.addEventListener('click', async () => {
     const { siteMappings = {} } = await chrome.storage.local.get('siteMappings');
     const { settings } = await chrome.storage.local.get('settings');
 
-    const reply = await send({
-      type: 'FILL',
-      fields: vaultData.fields ?? {},
-      customFields: vaultData.customFields ?? [],
-      emails: vaultData.emails ?? [],
+    // Two passes, and the split is the point.
+    //
+    // PASS 1 asks the page what it WOULD fill, given only the NAMES of the keys
+    // this vault can answer. No value leaves the popup, so a page that turns out
+    // to want nothing never sees anything.
+    const meta = M.describeVault(vaultData.fields, vaultData.customFields, vaultData.emails);
+    const payload = {
+      keys: meta.keys,
+      customFields: meta.customFields,
+      emails: meta.emails,
       mappings: host ? (siteMappings[host] ?? {}) : {},
       highlight: settings?.highlightFills !== false
+    };
+
+    const plan = await send({ type: 'PLAN', ...payload });
+    if (!plan?.ok) throw new Error(plan?.error ?? 'The page did not respond.');
+
+    if (plan.count === 0) {
+      reportFill(0, plan.total, plan.skipped ?? {});
+      return;
+    }
+
+    // PASS 2 sends the values for those keys only. A page with one email box
+    // receives one email address, not the address book, the phone number and
+    // the PAN.
+    const all = M.expandValues(vaultData.fields, vaultData.customFields, vaultData.emails);
+    const reply = await send({
+      type: 'FILL',
+      ...payload,
+      values: M.pickValues(all, plan.keys)
     });
 
     if (!reply?.ok) throw new Error(reply?.error ?? 'The page did not respond.');
 
-    const { filled, total, skipped } = reply;
-    if (filled === 0 && total === 0) {
-      setStatus('No fillable fields found on this page.', 'warn');
-    } else if (filled === 0) {
-      setStatus(
-        skipped.alreadyFilled > 0
-          ? `Filled 0 of ${total} - those fields already had values.`
-          : `Filled 0 of ${total}. Try "Teach fields" to map them.`,
-        'warn'
-      );
-    } else {
-      setStatus(`Filled ${filled} of ${total}. Review before submitting.`, 'ok');
-    }
+    // Pass 2 can still come back with nothing if the page changed underneath us.
+    reportFill(reply.filled, reply.total, reply.skipped ?? {});
   } catch (err) {
     setStatus(err.message, 'err');
   } finally {
@@ -172,12 +198,10 @@ teachBtn.addEventListener('click', async () => {
     const vaultData = await vaultOrThrow();
     const { send } = await withContentScript();
 
-    const reply = await send({
-      type: 'TEACH',
-      fields: vaultData.fields ?? {},
-      customFields: vaultData.customFields ?? [],
-      emails: vaultData.emails ?? []
-    });
+    // Key names only - the label picker lists what the vault CAN answer, and
+    // has never needed to know any of the answers.
+    const meta = M.describeVault(vaultData.fields, vaultData.customFields, vaultData.emails);
+    const reply = await send({ type: 'TEACH', keys: meta.keys });
     if (!reply?.ok) throw new Error(reply?.error ?? 'The page did not respond.');
 
     setStatus('Click a field on the page to label it. Esc to finish.', 'ok');

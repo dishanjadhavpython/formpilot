@@ -10,12 +10,30 @@
 //   * input[type=password] is skipped unconditionally.
 //   * Fields that already have a value are left alone, so a fill can never
 //     destroy something you typed yourself.
+//
+// THE DATA RULE, which shapes the whole file:
+//   This script runs inside a web page. Treat every value that reaches it as
+//   spent. So detection - which happens on ordinary browsing, on sites you have
+//   no intention of filling - is given KEY NAMES ONLY: enough to know `phone`
+//   can be answered, never the number. Real values arrive only in a FILL, only
+//   for the fields that fill is about to write, and only after a trusted click.
 
 if (!globalThis.__formPilotContentLoaded) {
   globalThis.__formPilotContentLoaded = true;
 
   const M = globalThis.FormPilotMatch;
   const UI_HOST_ID = '__formpilot_ui__';
+
+  // The page must not be able to reach our UI. With an open shadow root any
+  // script on the page could do
+  //     document.getElementById(UI_HOST_ID).shadowRoot.querySelector('button')
+  // and drive the Fill button itself. Closed, plus the isTrusted check on the
+  // button, means a fill needs a real human click.
+  let uiShadow = null;
+
+  // Ceiling on how many values one fill may pull out of the vault. A page with
+  // 400 inputs is not a form.
+  const MAX_FILL_KEYS = 60;
 
   // Input types that are never fillable from the vault. `password` is the one
   // that matters; the rest are simply not text.
@@ -31,7 +49,19 @@ if (!globalThis.__formPilotContentLoaded) {
   // Messaging
   // ==========================================================================
 
+  // Only our own extension may drive this script. chrome.runtime.onMessage does
+  // not deliver messages from the page itself (content scripts run in an
+  // isolated world, and no externally_connectable is declared), but checking the
+  // sender means that stays true even if that changes underneath us.
+  function fromOwnExtension(sender) {
+    return sender?.id === chrome.runtime.id;
+  }
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!fromOwnExtension(sender)) {
+      sendResponse({ ok: false, error: 'Rejected: not from FormPilot.' });
+      return false;
+    }
     try {
       switch (message?.type) {
         case 'PING_CONTENT':
@@ -40,19 +70,24 @@ if (!globalThis.__formPilotContentLoaded) {
         case 'FILL':
           sendResponse({ ok: true, ...fillForm(message) });
           break;
-        case 'DETECT':
-          // Look, count, offer — never fill. Filling is always a click away.
-          sendResponse({ ok: true, count: detect(message) });
+
+        case 'PLAN':
+          // What WOULD be filled, so the caller can send back just those values.
+          sendResponse({ ok: true, ...describePlan(message) });
           break;
 
-        case 'TEACH': {
-          // Offer every key we actually hold a value for, so the user cannot
-          // map a field to something the vault cannot fill.
-          const keys = Object.keys(M.expandValues(message.fields, message.customFields, message.emails));
-          enterTeachMode(keys.sort());
-          sendResponse({ ok: true, keys: keys.length });
+        case 'DETECT':
+          // Look, count, offer — never fill. Filling is always a click away.
+          sendResponse({ ok: true, ...detect(message) });
           break;
-        }
+
+        case 'TEACH':
+          // Key names only: the popup already worked out what the vault can
+          // answer, so the label picker never needs a single value.
+          enterTeachMode([...safeKeys(message.keys)].sort());
+          sendResponse({ ok: true, keys: safeKeys(message.keys).size });
+          break;
+
         default:
           sendResponse({ ok: false, error: `Unknown message: ${message?.type}` });
       }
@@ -61,6 +96,29 @@ if (!globalThis.__formPilotContentLoaded) {
     }
     return false;   // all branches respond synchronously
   });
+
+  // ==========================================================================
+  // Payload hygiene
+  // ==========================================================================
+
+  /** Key names from a message, as a Set, with anything malformed dropped. */
+  function safeKeys(keys) {
+    if (!Array.isArray(keys)) return new Set();
+    return new Set(keys.filter((key) => typeof key === 'string' && key.length > 0 && key.length <= 200));
+  }
+
+  /**
+   * Site mappings are read back from storage, so treat them as untrusted input:
+   * a hand-edited or corrupted store must not become a selector we run.
+   */
+  function safeMappings(mappings) {
+    if (!mappings || typeof mappings !== 'object' || Array.isArray(mappings)) return [];
+    return Object.entries(mappings)
+      .filter(([selector, key]) =>
+        typeof selector === 'string' && selector.length > 0 && selector.length <= 500 &&
+        typeof key === 'string' && key.length > 0 && key.length <= 200)
+      .slice(0, 200);
+  }
 
   // ==========================================================================
   // Finding fields
@@ -174,19 +232,21 @@ if (!globalThis.__formPilotContentLoaded) {
   }
 
   /**
-   * Work out what WOULD be filled, without touching the page.
+   * Work out what WOULD be filled, without touching the page and WITHOUT ever
+   * being told a value. `keys` is the set of vault keys that hold something -
+   * names like `email` or `custom:Employee ID`, never the data behind them.
+   *
    * Shared by the fill itself and by detection, so a suggestion can never
    * promise a number the fill then fails to deliver.
    */
-  function planFill({ fields = {}, customFields = [], emails = [], mappings = {} }) {
-    // fullName also answers first/last name; custom labels become matchable keys.
-    const values = M.expandValues(fields, customFields, emails);
+  function planFill({ keys, customFields = [], emails = [], mappings = {} }) {
+    const available = safeKeys(keys);
     const dictionary = M.buildDictionary(customFields, emails);
     const all = candidates();
 
     // Per-site mappings the user taught us win over every guess.
     const taught = new Map();
-    for (const [selector, key] of Object.entries(mappings)) {
+    for (const [selector, key] of safeMappings(mappings)) {
       try {
         const el = document.querySelector(selector);
         if (el && isFillable(el)) taught.set(el, key);
@@ -205,14 +265,14 @@ if (!globalThis.__formPilotContentLoaded) {
 
       if (!key) { skipped.noMatch++; continue; }
 
-      const value = values[key];
-      if (value === undefined || value === '') { skipped.noValue++; continue; }
+      // The vault has nothing under that key, so there is nothing to ask for.
+      if (!available.has(key)) { skipped.noValue++; continue; }
 
       // Never overwrite something already in the box.
       if (el.value && el.value.trim() !== '') { skipped.alreadyFilled++; continue; }
 
       plan.push({
-        el, key, value,
+        el, key,
         source: taught.has(el) ? 'taught' : (M.fromAutocomplete(el) ? 'autocomplete' : 'guess')
       });
     }
@@ -223,15 +283,30 @@ if (!globalThis.__formPilotContentLoaded) {
     return { plan, skipped, total };
   }
 
+  /** The plan as a message: a count and the key names needed, no elements. */
+  function describePlan(message) {
+    const { plan, skipped, total } = planFill(message);
+    const keys = [...new Set(plan.map((item) => item.key))].slice(0, MAX_FILL_KEYS);
+    return { count: plan.length, keys, total, skipped };
+  }
+
+  /**
+   * Fill from `values`, which holds ONLY the keys a preceding PLAN asked for.
+   * The plan is recomputed here rather than trusted from before, so a page that
+   * changed in between cannot get a value written somewhere it was not planned.
+   */
   function fillForm(message) {
     clearOutlines();
 
-    const { plan, skipped, total } = planFill(message);
+    const values = (message.values && typeof message.values === 'object') ? message.values : {};
+    const { plan, skipped, total } = planFill({ ...message, keys: Object.keys(values) });
     const highlight = message.highlight !== false;
     const filled = [];
 
-    for (const { el, key, value, source } of plan) {
-      if (!fillOne(el, value)) continue;
+    for (const { el, key, source } of plan) {
+      const value = values[key];
+      if (value === undefined || value === null || value === '') continue;
+      if (!fillOne(el, String(value))) continue;
       announce(el);
       filled.push({ key, source });
       if (highlight) outline(el);
@@ -246,14 +321,16 @@ if (!globalThis.__formPilotContentLoaded) {
   // ==========================================================================
 
   let suggestionDismissed = false;
-  let pendingPayload = null;      // kept so the chip's Fill button has the data
+  let pendingMeta = null;      // key names + labels only. Never values.
 
   /**
    * Count what could be filled and, if anything can, show the suggestion chip.
    * Returns the count so the service worker can badge the toolbar icon.
+   *
+   * `message` carries no vault values, and neither does anything this stores.
    */
   function detect(message) {
-    pendingPayload = message;
+    pendingMeta = message;
     const { plan } = planFill(message);
 
     if (plan.length > 0) {
@@ -263,7 +340,7 @@ if (!globalThis.__formPilotContentLoaded) {
       // re-check once the user actually touches a field rather than giving up.
       armLateDetect();
     }
-    return plan.length;
+    return { count: plan.length };
   }
 
   function armLateDetect() {
@@ -272,15 +349,36 @@ if (!globalThis.__formPilotContentLoaded) {
   }
 
   function onLateFocus(event) {
-    if (suggestionDismissed || !pendingPayload) return;
+    if (suggestionDismissed || !pendingMeta) return;
     const el = event.target;
     if (!(el instanceof Element) || !el.matches('input, select, textarea')) return;
 
-    const { plan } = planFill(pendingPayload);
+    const { plan } = planFill(pendingMeta);
     if (plan.length === 0) return;
 
     document.removeEventListener('focusin', onLateFocus, true);
-    if (pendingPayload.showChip !== false) showSuggestion(plan.length);
+    if (pendingMeta.showChip !== false) showSuggestion(plan.length);
+  }
+
+  /**
+   * The chip's Fill button. This is the moment values are allowed into the page,
+   * so it is the moment everything is checked: a real click, and then the
+   * service worker hands back only the keys this plan needs.
+   */
+  async function fillFromChip(event) {
+    // A page cannot forge this. element.click() and dispatchEvent() both produce
+    // isTrusted:false, so a script that reached our button still cannot fire it.
+    if (!event.isTrusted || !pendingMeta) return;
+
+    const { keys } = describePlan(pendingMeta);
+    if (keys.length === 0) return;
+
+    const reply = await chrome.runtime.sendMessage({ type: 'REQUEST_FILL', keys }).catch(() => null);
+    if (!reply?.ok) {
+      showMessage('FormPilot', reply?.error ?? 'The vault is locked.');
+      return;
+    }
+    fillForm({ ...pendingMeta, values: reply.values, highlight: reply.highlight });
   }
 
   function showSuggestion(count) {
@@ -308,9 +406,7 @@ if (!globalThis.__formPilotContentLoaded) {
     const fill = document.createElement('button');
     fill.type = 'button';
     fill.textContent = 'Fill';
-    fill.addEventListener('click', () => {
-      if (pendingPayload) fillForm(pendingPayload);   // replaces this with its own toast
-    });
+    fill.addEventListener('click', fillFromChip);
 
     const dismiss = document.createElement('button');
     dismiss.type = 'button';
@@ -350,17 +446,20 @@ if (!globalThis.__formPilotContentLoaded) {
   // ==========================================================================
 
   function uiRoot() {
-    let host = document.getElementById(UI_HOST_ID);
-    if (host) return host.shadowRoot;
+    // Held in a module variable rather than looked up from the DOM: with a
+    // closed shadow root, host.shadowRoot is null for everyone, us included.
+    if (uiShadow && uiShadow.isConnected) return uiShadow;
 
-    host = document.createElement('div');
+    const host = document.createElement('div');
     host.id = UI_HOST_ID;
     host.style.setProperty('all', 'initial', 'important');
     host.style.setProperty('position', 'fixed', 'important');
     host.style.setProperty('z-index', '2147483647', 'important');
     host.style.setProperty('inset', 'auto 16px 16px auto', 'important');
 
-    const shadow = host.attachShadow({ mode: 'open' });
+    // closed: the page cannot reach into our UI to read it or click its buttons.
+    const shadow = host.attachShadow({ mode: 'closed' });
+    uiShadow = shadow;
 
     // These styles mirror styles/one-ui.css. A Shadow DOM rendered into a
     // third-party page cannot reach the extension's stylesheet, and CSS custom
@@ -426,27 +525,34 @@ if (!globalThis.__formPilotContentLoaded) {
   }
 
   function removeUi() {
-    document.getElementById(UI_HOST_ID)?.remove();
+    uiShadow?.host?.remove();
+    uiShadow = null;
   }
 
-  function showToast(filled, total, skipped) {
+  /** One card, two lines of text. Every caller builds nodes, never markup. */
+  function showMessage(heading, detail) {
     const shadow = uiRoot();
-    const extra = skipped.alreadyFilled
-      ? ` ${skipped.alreadyFilled} already had a value.`
-      : '';
-
     const slot = shadow.getElementById('slot');
     slot.replaceChildren();
 
     const card = document.createElement('div');
     card.className = 'card';
     const title = document.createElement('strong');
-    title.textContent = `FormPilot filled ${filled} of ${total}`;
+    title.textContent = heading;
     const note = document.createElement('div');
     note.className = 'muted';
-    note.textContent = `Review before you submit.${extra}`;
+    note.textContent = detail;
     card.append(title, note);
     slot.append(card);
+    return card;
+  }
+
+  function showToast(filled, total, skipped) {
+    const extra = skipped.alreadyFilled
+      ? ` ${skipped.alreadyFilled} already had a value.`
+      : '';
+
+    showMessage(`FormPilot filled ${filled} of ${total}`, `Review before you submit.${extra}`);
 
     clearTimeout(showToast.timer);
     showToast.timer = setTimeout(removeUi, 6000);
@@ -583,13 +689,28 @@ if (!globalThis.__formPilotContentLoaded) {
     return path.join(' > ');
   }
 
-  // Mappings hold a hostname, a selector and a vault field NAME - never a value.
+  // siteMappings is the one thing this script writes to storage, and it is
+  // written unencrypted, so it is capped on every axis. Nothing here is
+  // personal: a hostname, a CSS selector and a vault field NAME - never a value.
+  const MAX_MAPPED_HOSTS = 200;
+  const MAX_MAPPINGS_PER_HOST = 100;
+  const MAX_SELECTOR_CHARS = 500;
+
   async function saveMapping(el, key) {
     const host = location.hostname;
     const selector = stableSelector(el);
+    if (!host || !selector || selector.length > MAX_SELECTOR_CHARS) return;
 
     const { siteMappings = {} } = await chrome.storage.local.get('siteMappings');
-    siteMappings[host] = { ...(siteMappings[host] ?? {}), [selector]: key };
+    const forHost = { ...(siteMappings[host] ?? {}) };
+
+    // Refuse to grow without limit rather than silently evicting something the
+    // user taught earlier - a full map is a bug worth noticing, not data to bin.
+    if (!(selector in forHost) && Object.keys(forHost).length >= MAX_MAPPINGS_PER_HOST) return;
+    if (!(host in siteMappings) && Object.keys(siteMappings).length >= MAX_MAPPED_HOSTS) return;
+
+    forHost[selector] = key;
+    siteMappings[host] = forHost;
     await chrome.storage.local.set({ siteMappings });
   }
 }
