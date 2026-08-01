@@ -21,7 +21,7 @@
 import { createVault, unlockVault, encryptVault } from './lib/crypto.js';
 import { DEFAULT_PRESETS, fitToBand } from './lib/image.js';
 import { recognise, extractFields, terminateOcr } from './lib/ocr.js';
-import { wrapBackup, validateBackup } from './lib/backup.js';
+import { wrapBackup, validateBackup, validateVaultRecord } from './lib/backup.js';
 
 // --- Constants --------------------------------------------------------------
 
@@ -344,6 +344,49 @@ $('confirmPass').addEventListener('keydown', (e) => {
 // Unlock / Lock
 // ============================================================================
 
+// --- Guessing the passphrase ------------------------------------------------
+//
+// PBKDF2 already makes each attempt cost about a quarter of a second, which is
+// the real defence against an offline attack on the ciphertext. This is for the
+// other case: someone sitting at your unlocked machine with the options page
+// open, working through likely passphrases by hand or with a script.
+//
+// The counter lives in chrome.storage.session, so it survives a page reload
+// (closing the tab is not a reset) but not a browser restart, and it can never
+// lock a legitimate user out permanently - the wait tops out at half a minute.
+
+const ATTEMPTS_KEY = 'unlockAttempts';
+const FREE_ATTEMPTS = 3;          // ordinary typos should cost nothing
+const BACKOFF_STEP_MS = 2_000;
+const MAX_BACKOFF_MS = 30_000;
+
+async function readAttempts() {
+  const { [ATTEMPTS_KEY]: state } = await chrome.storage.session.get(ATTEMPTS_KEY);
+  return state ?? { failures: 0, blockedUntil: 0 };
+}
+
+/** Milliseconds still to wait, or 0 if an attempt is allowed right now. */
+async function unlockCooldownMs() {
+  const { blockedUntil } = await readAttempts();
+  return Math.max(0, blockedUntil - Date.now());
+}
+
+async function recordUnlockFailure() {
+  const state = await readAttempts();
+  const failures = state.failures + 1;
+  const over = Math.max(0, failures - FREE_ATTEMPTS);
+  // 0, 0, 0, 2s, 4s, 8s, 16s, 30s, 30s...
+  const wait = over === 0 ? 0 : Math.min(BACKOFF_STEP_MS * 2 ** (over - 1), MAX_BACKOFF_MS);
+  await chrome.storage.session.set({
+    [ATTEMPTS_KEY]: { failures, blockedUntil: Date.now() + wait }
+  });
+  return wait;
+}
+
+async function clearUnlockFailures() {
+  await chrome.storage.session.remove(ATTEMPTS_KEY);
+}
+
 $('unlockBtn').addEventListener('click', async () => {
   const pass = $('unlockPass').value;
   const status = $('unlockStatus');
@@ -353,15 +396,28 @@ $('unlockBtn').addEventListener('click', async () => {
     return;
   }
 
+  const cooldown = await unlockCooldownMs();
+  if (cooldown > 0) {
+    setStatus(status, `Too many failed attempts. Try again in ${Math.ceil(cooldown / 1000)}s.`, 'err', 5000);
+    return;
+  }
+
   $('unlockBtn').disabled = true;
   setStatus(status, 'Deriving key...', '', 0);
 
   try {
     const { [STORAGE_KEY]: record } = await chrome.storage.local.get(STORAGE_KEY);
 
+    // The record on disk gets the same scrutiny as an imported file. Anything
+    // that can write to extension storage could otherwise set iterations to two
+    // billion and hang the tab, or drop it to 1 and quietly gut the encryption.
+    const problem = validateVaultRecord(record);
+    if (problem) throw new Error(problem);
+
     // Re-derives the key from the salt stored in the record, then tries to
     // decrypt. A failure here is how we learn the passphrase was wrong.
     const opened = await unlockVault(pass, record);
+    await clearUnlockFailures();
 
     sessionKey = opened.key;
     kdfParams = opened.kdfParams;
@@ -376,7 +432,9 @@ $('unlockBtn').addEventListener('click', async () => {
     updateUsage();
     revealHashTarget();   // honour a #section the popup asked for, now it exists
   } catch (err) {
-    setStatus(status, err.message, 'err', 5000);
+    const wait = await recordUnlockFailure();
+    const suffix = wait > 0 ? ` Wait ${Math.ceil(wait / 1000)}s before trying again.` : '';
+    setStatus(status, err.message + suffix, 'err', 6000);
     $('unlockPass').select();
   } finally {
     $('unlockBtn').disabled = false;

@@ -32,6 +32,15 @@ These are not preferences. Breaking one is a bug, even if the feature works.
    Likewise never put the user's own details into somebody else's field —
    "Father's Name", "Spouse Email", "Nominee", "Emergency Contact". `THIRD_PARTY`
    in `lib/match.js` restricts those to explicitly labelled or taught values.
+
+3a. **A web page is told what the vault can answer, never what the answer is.**
+   The content script lives inside somebody else's page, so treat every value
+   that reaches it as spent. `DETECT` and `PLAN` carry **key names and labels
+   only** — `describeVault()` in `lib/match.js` and `publicMeta()` in
+   `background.js` produce them, and neither can return a value. Real values
+   cross only in a `FILL`, only for the keys that fill is about to write, and
+   only after a trusted click. Putting `fields:` back on a `DETECT` message
+   turns ordinary browsing into broadcasting; `npm run audit` fails if you do.
 4. **No network. Ever.** No `fetch`, no CDN, no analytics, no telemetry. If a
    feature seems to need the network, it is the wrong feature.
 5. **No remote code (MV3 requirement).** Third-party libraries get vendored into

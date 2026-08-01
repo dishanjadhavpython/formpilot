@@ -5,7 +5,10 @@
   "description": "Local-first Chrome/Edge extension: encrypted vault, form autofill, resize-to-spec, OCR.",
   "type": "module",
   "scripts": {
-    "test": "node test/run.mjs"
+    "test": "node test/run.mjs",
+    "audit": "node test/audit.test.mjs",
+    "audit:verify": "node test/audit-mutations.mjs",
+    "security": "node test/security.test.mjs"
   },
   "dependencies": {},
   "devDependencies": {}

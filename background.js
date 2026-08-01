@@ -141,9 +141,9 @@ async function detectForms(tabId, url) {
     await ensureContentScript(tabId);
 
     // KEY NAMES ONLY. This message goes to every http(s) page you open while
-    // unlocked, so it must never carry a value - describeVault() strips them,
+    // unlocked, so it must never carry a value - publicMeta() has none to give,
     // leaving what counting fields actually needs.
-    const meta = describeVault(vaultData);
+    const meta = publicMeta(vaultData);
 
     const reply = await chrome.tabs.sendMessage(tabId, {
       type: 'DETECT',
@@ -171,14 +171,16 @@ async function detectForms(tabId, url) {
 const MAX_RELEASED_KEYS = 60;
 
 /**
- * Split the session vault into "what a page may know" (key names and labels)
- * and the values, which stay here until a fill actually needs them.
+ * Everything about the vault a web page is allowed to know: which keys hold
+ * something, and the labels needed to match a field to one. Deliberately
+ * returns no values at all, so there is nothing here to leak by accident.
+ *
+ * Mirrors describeVault() in lib/match.js, which the popup uses for the same
+ * purpose down the same code path.
  */
-function describeVault(vaultData) {
-  const values = expandValues(vaultData);
+function publicMeta(vaultData) {
   return {
-    values,
-    keys: Object.keys(values),
+    keys: Object.keys(expandValues(vaultData)),
     customFields: (vaultData.customFields ?? [])
       .filter((field) => field?.label && field?.value)
       .map((field) => ({ label: field.label })),
@@ -287,10 +289,18 @@ function fromOwnExtension(sender) {
   return sender?.id === chrome.runtime.id;
 }
 
-/** True only for the popup and the options page, never for a content script. */
+/**
+ * True only for the popup and the options page, never for a content script.
+ *
+ * Cannot use `!sender.tab` to tell them apart: options_ui.open_in_tab is true,
+ * so options.html runs inside a real tab and Chrome populates sender.tab for it
+ * exactly like it would for a content script. The origin is what actually
+ * differs - a content script's sender.url is the PAGE it was injected into,
+ * never this extension's own chrome-extension:// origin - so that check alone
+ * is both necessary and sufficient.
+ */
 function fromExtensionPage(sender) {
   return fromOwnExtension(sender)
-    && !sender.tab
     && (sender.url ?? '').startsWith(chrome.runtime.getURL(''));
 }
 

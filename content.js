@@ -81,12 +81,14 @@ if (!globalThis.__formPilotContentLoaded) {
           sendResponse({ ok: true, ...detect(message) });
           break;
 
-        case 'TEACH':
+        case 'TEACH': {
           // Key names only: the popup already worked out what the vault can
           // answer, so the label picker never needs a single value.
-          enterTeachMode([...safeKeys(message.keys)].sort());
-          sendResponse({ ok: true, keys: safeKeys(message.keys).size });
+          const keys = [...safeKeys(message.keys)].sort();
+          enterTeachMode(keys);
+          sendResponse({ ok: true, keys: keys.length });
           break;
+        }
 
         default:
           sendResponse({ ok: false, error: `Unknown message: ${message?.type}` });
