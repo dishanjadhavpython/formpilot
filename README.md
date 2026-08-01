@@ -43,6 +43,14 @@ Personal fields (name, date of birth, email, phone, address, PAN, masked
 Aadhaar), any number of custom fields, and document images — all encrypted at
 rest with AES-256-GCM under a key derived from your passphrase.
 
+**Several email addresses.** Keep a main address plus any number of extras
+labelled Personal, Work, College, Alternate or Parent/Guardian. A form asking
+for "Work email" gets the work one, not your primary — the label carries real
+matching synonyms, so a qualified field beats the generic guess.
+
+**Document types** cover identity (photo, signature, PAN, Aadhaar, other ID) and
+education: 10th/SSC, 12th/HSC, Diploma, Degree/Bachelor's, Master's and PhD.
+
 ### Form autofill
 Open any form, click **Fill this form**. FormPilot infers what each field wants
 and fills it, outlines what it touched, and reports "filled X of Y".
@@ -50,6 +58,11 @@ and fills it, outlines what it touched, and reports "filled X of Y".
 It **never submits the form**, never fills password fields, skips hidden
 honeypot fields, and never overwrites something you already typed. Review and
 submit yourself, always.
+
+It also leaves **other people's fields alone**. "Father's Name", "Spouse Email",
+"Nominee", "Emergency Contact" and the like are never filled with your own
+details — only with a value you explicitly labelled for that person, or one you
+taught for that site.
 
 Got it wrong? **Teach fields on this site** — click a field, say what it is, and
 it is remembered for that site. Saved mappings are listed in the options page

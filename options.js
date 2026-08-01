@@ -31,13 +31,72 @@ const MIN_PASSPHRASE = 10;
 const MAX_DOC_BYTES = 2 * 1024 * 1024;   // 2 MB per image before encoding
 const QUOTA_BYTES = 10 * 1024 * 1024;    // chrome.storage.local default quota
 
-const DOC_TYPES = {
-  photo: 'Passport photo',
-  signature: 'Signature',
-  pan: 'PAN card',
-  aadhaar: 'Aadhaar',
-  marksheet: 'Marksheet',
-  idProof: 'Other ID proof',
+// Document types, grouped so the dropdown stays readable as it grows.
+// Every <select> that offers these is built from this one source, so adding a
+// type here updates the attach picker, the image tool and every document card.
+const DOC_GROUPS = [
+  {
+    label: 'Identity',
+    types: {
+      photo: 'Passport photo',
+      signature: 'Signature',
+      pan: 'PAN card',
+      aadhaar: 'Aadhaar',
+      idProof: 'Other ID proof'
+    }
+  },
+  {
+    label: 'Marksheets & degrees',
+    types: {
+      marksheet10: '10th / SSC',
+      marksheet12: '12th / HSC',
+      marksheetDiploma: 'Diploma',
+      marksheetDegree: 'Degree / Bachelor’s',
+      marksheetMasters: 'Master’s degree',
+      marksheetPhd: 'PhD'
+    }
+  },
+  {
+    label: 'Other',
+    types: {
+      // Kept so documents saved before the split still show a real label.
+      marksheet: 'Marksheet (unspecified)',
+      other: 'Other'
+    }
+  }
+];
+
+// Flat lookup for labelling a stored document.
+const DOC_TYPES = Object.fromEntries(
+  DOC_GROUPS.flatMap((group) => Object.entries(group.types))
+);
+
+/** Build a grouped type dropdown. Used by all three selects. */
+function fillDocTypeSelect(select, selected) {
+  select.replaceChildren();
+  for (const group of DOC_GROUPS) {
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = group.label;
+    for (const [value, text] of Object.entries(group.types)) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = text;
+      if (value === selected) option.selected = true;
+      optgroup.append(option);
+    }
+    select.append(optgroup);
+  }
+}
+
+// Labels for extra email addresses. Fixed rather than free text, so each one
+// carries real matching synonyms (see EMAIL_LABEL_SYNONYMS in lib/match.js) —
+// a free-text label could only ever be matched literally.
+const EMAIL_LABELS = {
+  personal: 'Personal',
+  work: 'Work / Office',
+  college: 'College / Institute',
+  alternate: 'Alternate',
+  guardian: 'Parent / Guardian',
   other: 'Other'
 };
 
@@ -57,6 +116,7 @@ function emptyVault() {
       fullName: '', dob: '', email: '', phone: '',
       address: '', pan: '', aadhaarMasked: ''
     },
+    emails: [],         // [{ id, label, value }]  extra addresses beyond fields.email
     customFields: [],   // [{ id, label, value }]
     documents: []       // [{ id, type, name, mime, dataUrl, bytes, addedAt }]
   };
@@ -112,6 +172,7 @@ async function publishSession() {
   await chrome.storage.session.set({
     [SESSION_KEY]: {
       fields: vault.fields,
+      emails: vault.emails,
       customFields: vault.customFields,
       unlockedAt: Date.now()
     }
@@ -299,6 +360,7 @@ function lockLocally() {
 
   // Clear the rendered plaintext out of the DOM as well.
   for (const el of document.querySelectorAll('[data-field]')) el.value = '';
+  $('emailList').replaceChildren();
   $('customList').replaceChildren();
   $('docList').replaceChildren();
   $('resultPreview').removeAttribute('src');
@@ -380,6 +442,7 @@ function renderVault() {
   for (const input of document.querySelectorAll('[data-field]')) {
     input.value = vault.fields[input.dataset.field] ?? '';
   }
+  renderEmails();
   renderCustomFields();
   renderDocuments();
   setDirty(false);
@@ -426,6 +489,71 @@ function maskAadhaar(raw) {
 $('f-aadhaarMasked').addEventListener('blur', () => {
   const el = $('f-aadhaarMasked');
   if (el.value.trim()) el.value = maskAadhaar(el.value);
+});
+
+// --- Extra email addresses --------------------------------------------------
+//
+// The primary address stays in fields.email and answers a plain "Email" field.
+// These extras answer qualified ones — "Work email", "Alternate email id" —
+// which is why the label is a fixed set rather than free text.
+
+function renderEmails() {
+  const list = $('emailList');
+  list.replaceChildren();
+
+  if (vault.emails.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'Just the one address so far. Add a work or alternate email if forms ask for it.';
+    list.append(empty);
+    return;
+  }
+
+  for (const entry of vault.emails) {
+    const row = document.createElement('div');
+    row.className = 'custom-row custom-row--email';
+
+    const label = document.createElement('select');
+    for (const [value, text] of Object.entries(EMAIL_LABELS)) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = text;
+      if (entry.label === value) option.selected = true;
+      label.append(option);
+    }
+    label.addEventListener('change', () => { entry.label = label.value; setDirty(true); });
+
+    const value = document.createElement('input');
+    value.type = 'email';
+    value.placeholder = 'name@example.com';
+    value.value = entry.value;
+    value.autocomplete = 'off';
+    value.addEventListener('input', () => { entry.value = value.value; setDirty(true); });
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'danger tiny';
+    remove.textContent = 'Remove';
+    remove.addEventListener('click', () => {
+      vault.emails = vault.emails.filter((e) => e.id !== entry.id);
+      renderEmails();
+      setDirty(true);
+    });
+
+    row.append(label, value, remove);
+    list.append(row);
+  }
+}
+
+$('addEmailBtn').addEventListener('click', () => {
+  // Default to the first label not already used, so two rows rarely collide.
+  const used = new Set(vault.emails.map((e) => e.label));
+  const next = Object.keys(EMAIL_LABELS).find((k) => !used.has(k)) ?? 'other';
+
+  vault.emails.push({ id: newId(), label: next, value: '' });
+  renderEmails();
+  setDirty(true);
+  $('emailList').querySelector('.custom-row:last-child input')?.focus();
 });
 
 // --- Custom fields ----------------------------------------------------------
@@ -524,13 +652,7 @@ function renderDocuments() {
     actions.className = 'doc-actions';
 
     const typeSelect = document.createElement('select');
-    for (const [value, text] of Object.entries(DOC_TYPES)) {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = text;
-      if (doc.type === value) option.selected = true;
-      typeSelect.append(option);
-    }
+    fillDocTypeSelect(typeSelect, doc.type);
     typeSelect.style.flex = '1';
     typeSelect.addEventListener('change', () => { doc.type = typeSelect.value; setDirty(true); });
 
@@ -621,6 +743,7 @@ $('saveBtn').addEventListener('click', async () => {
 
   // 2. Drop blank custom rows rather than persisting empty noise.
   vault.customFields = vault.customFields.filter((f) => f.label.trim() || f.value.trim());
+  vault.emails = vault.emails.filter((e) => e.value.trim());
   vault.updatedAt = new Date().toISOString();
 
   $('saveBtn').disabled = true;
@@ -1292,5 +1415,7 @@ async function renderMappings() {
   }
 }
 
+fillDocTypeSelect($('docType'), 'photo');
+fillDocTypeSelect($('resultDocType'), 'photo');
 loadPresets();
 boot();

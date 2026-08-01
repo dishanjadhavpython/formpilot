@@ -72,5 +72,66 @@ const single = M.expandValues({ fullName: 'Prince' }, []);
 expect('single-word name', single.firstName, 'Prince');
 expect('no bogus lastName', single.lastName, undefined);
 
+console.log('\n7. Multiple emails');
+const emails = [
+  { id: '1', label: 'work',      value: 'me@company.com' },
+  { id: '2', label: 'college',   value: 'me@uni.edu' },
+  { id: '3', label: 'alternate', value: 'alt@mail.com' }
+];
+const dictE = M.buildDictionary([], emails);
+const inferE = (t) => M.inferKey(M.normalise(t), dictE)?.key ?? null;
+
+expect('Email',                inferE('Email'),                'email');
+expect('Email Address',        inferE('Email Address'),        'email');
+// The whole point of `priority`: "email address" is the LONGER phrase, so
+// without it these would all fall back to the primary address.
+expect('Work Email Address',   inferE('Work Email Address'),   'email:work');
+expect('Official Email',       inferE('Official Email'),       'email:work');
+expect('College Email ID',     inferE('College Email ID'),     'email:college');
+expect('Alternate Email',      inferE('Alternate Email'),      'email:alternate');
+expect('Secondary Email Address', inferE('Secondary Email Address'), 'email:alternate');
+// Somebody else's field, and no guardian address configured -> fill nothing.
+expect('Parent Email (none set)', inferE('Parent Email'),      null);
+
+// With one configured, the labelled value fills it.
+const dictG = M.buildDictionary([], [{ id: 'g', label: 'guardian', value: 'dad@mail.com' }]);
+const inferG = (t) => M.inferKey(M.normalise(t), dictG)?.key ?? null;
+expect('Parent Email (set)',   inferG('Parent Email'),         'email:guardian');
+expect("Father's Email",       inferG("Father's Email"),       'email:guardian');
+
+const vals = M.expandValues({ email: 'main@me.com', fullName: 'A B' }, [], emails);
+expect('primary kept',      vals.email,                'main@me.com');
+expect('work value',        vals['email:work'],        'me@company.com');
+expect('college value',     vals['email:college'],     'me@uni.edu');
+expect('explicit alternate wins over fallback', vals['email:alternate'], 'alt@mail.com');
+
+// With no alternate labelled, the first extra answers an "alternate" field.
+const vals2 = M.expandValues({ email: 'main@me.com' }, [], [emails[0]]);
+expect('alternate falls back to first extra', vals2['email:alternate'], 'me@company.com');
+
+// No primary set: the first extra becomes the answer for a plain Email field.
+const vals3 = M.expandValues({}, [], [emails[0]]);
+expect('primary falls back to first extra', vals3.email, 'me@company.com');
+
+// Unlabelled or empty rows must not create phantom keys.
+const vals4 = M.expandValues({}, [], [{ id: 'x', label: 'work', value: '' }]);
+expect('blank email ignored', vals4['email:work'], undefined);
+
+console.log("\n8. Somebody else's fields never take your own details");
+// "Father's Name" matches the fullName synonym "name" - it must not fill.
+expect("Father's Name",        infer("Father's Name"),         null);
+expect("Mother's Name",        infer("Mother's Name"),         null);
+expect('Spouse Name',          infer('Spouse Name'),           null);
+expect('Nominee Name',         infer('Nominee Name'),          null);
+expect('Emergency Contact No', infer('Emergency Contact No'),  null);
+expect('Guardian Address',     infer('Guardian Address'),      null);
+// ...but the user's own equivalents still fill.
+expect('still fills own name', infer('Full Name'),             'fullName');
+expect('still fills own addr', infer('Permanent Address'),     'address');
+
+console.log('\n9. A taught custom field still outranks a generic guess');
+const dictC = M.buildDictionary([{ label: 'Email', value: 'x@y.z' }], []);
+expect('custom "Email" beats builtin', M.inferKey(M.normalise('Email'), dictC)?.key, 'custom:Email');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

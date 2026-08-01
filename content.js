@@ -43,7 +43,7 @@ if (!globalThis.__formPilotContentLoaded) {
         case 'TEACH': {
           // Offer every key we actually hold a value for, so the user cannot
           // map a field to something the vault cannot fill.
-          const keys = Object.keys(M.expandValues(message.fields, message.customFields));
+          const keys = Object.keys(M.expandValues(message.fields, message.customFields, message.emails));
           enterTeachMode(keys.sort());
           sendResponse({ ok: true, keys: keys.length });
           break;
@@ -150,12 +150,12 @@ if (!globalThis.__formPilotContentLoaded) {
     return true;
   }
 
-  function fillForm({ fields = {}, customFields = [], mappings = {}, highlight = true }) {
+  function fillForm({ fields = {}, customFields = [], emails = [], mappings = {}, highlight = true }) {
     clearOutlines();
 
     // fullName also answers first/last name; custom labels become matchable keys.
-    const values = M.expandValues(fields, customFields);
-    const dictionary = M.buildDictionary(customFields);
+    const values = M.expandValues(fields, customFields, emails);
+    const dictionary = M.buildDictionary(customFields, emails);
     const all = candidates();
 
     // Per-site mappings the user taught us win over every guess.

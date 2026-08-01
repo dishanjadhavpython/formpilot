@@ -29,6 +29,9 @@ These are not preferences. Breaking one is a bug, even if the feature works.
      vault may be locked; the hostnames it reveals are already in your browser
      history.
 3. **Never fill password fields.** Skip `input[type=password]` in autofill.
+   Likewise never put the user's own details into somebody else's field —
+   "Father's Name", "Spouse Email", "Nominee", "Emergency Contact". `THIRD_PARTY`
+   in `lib/match.js` restricts those to explicitly labelled or taught values.
 4. **No network. Ever.** No `fetch`, no CDN, no analytics, no telemetry. If a
    feature seems to need the network, it is the wrong feature.
 5. **No remote code (MV3 requirement).** Third-party libraries get vendored into

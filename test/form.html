@@ -68,6 +68,26 @@
     <label for="c1">Date of birth (text input wanting dd/mm/yyyy)</label>
     <input id="c1" name="dob" placeholder="dd/mm/yyyy" data-expect="fill">
 
+    <h2>Qualified emails &mdash; should get the right address, not the primary</h2>
+    <label for="q1">Work Email Address</label>
+    <input id="q1" name="workEmail" type="email" data-expect="fill">
+
+    <label for="q2">Alternate Email ID</label>
+    <input id="q2" name="altEmail" type="email" data-expect="fill">
+
+    <h2>Somebody else's fields &mdash; must stay empty</h2>
+    <label for="p1">Father's Name</label>
+    <input id="p1" name="fatherName" data-expect="never">
+
+    <label for="p2">Mother's Name</label>
+    <input id="p2" name="motherName" data-expect="never">
+
+    <label for="p3">Spouse Email</label>
+    <input id="p3" name="spouseEmail" type="email" data-expect="never">
+
+    <label for="p4">Emergency Contact Number</label>
+    <input id="p4" name="emergencyContact" data-expect="never">
+
     <h2>Must stay empty &mdash; safety cases</h2>
     <label for="d1">Password</label>
     <input id="d1" type="password" autocomplete="new-password" data-expect="never">

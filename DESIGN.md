@@ -146,6 +146,10 @@ spec but not yet used; the app currently has no bottom sheet or chip surface, an
 **Inputs need a visible edge on glass.** Their border was `transparent` while cards were opaque.
 Once cards became translucent the fields disappeared into them, so the border is now `--divider`.
 
+**Email rows stack.** `.custom-row--email` puts the label and Remove on one line
+and the address full-width below. Side by side, a real address always clipped —
+there is not enough room for a label, an address and a button in a 460px column.
+
 **The popup has a hard 600px ceiling.** Chrome will not render a taller popup. Header + six tiles +
 action bar + footer only just fit, which is why `.tile` padding and the popup's own spacing are
 tighter than the rest of the system. Adding a seventh tile means removing something else.

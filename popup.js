@@ -128,6 +128,7 @@ fillBtn.addEventListener('click', async () => {
       type: 'FILL',
       fields: vaultData.fields ?? {},
       customFields: vaultData.customFields ?? [],
+      emails: vaultData.emails ?? [],
       mappings: host ? (siteMappings[host] ?? {}) : {},
       highlight: settings?.highlightFills !== false
     });
@@ -165,7 +166,8 @@ teachBtn.addEventListener('click', async () => {
     const reply = await send({
       type: 'TEACH',
       fields: vaultData.fields ?? {},
-      customFields: vaultData.customFields ?? []
+      customFields: vaultData.customFields ?? [],
+      emails: vaultData.emails ?? []
     });
     if (!reply?.ok) throw new Error(reply?.error ?? 'The page did not respond.');
 

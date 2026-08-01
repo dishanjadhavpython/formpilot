@@ -91,6 +91,7 @@
         <div class="field-group full">
           <label for="f-email">Email</label>
           <input id="f-email" type="email" data-field="email" autocomplete="off">
+          <p class="sub">Your main address. Add work or alternate ones below.</p>
         </div>
         <div class="field-group full">
           <label for="f-address">Address</label>
@@ -110,6 +111,10 @@
         </div>
       </div>
 
+      <h3>Other emails</h3>
+      <div id="emailList"></div>
+      <button id="addEmailBtn" class="secondary tiny" type="button">+ Add another email</button>
+
       <h3>Custom fields</h3>
       <div id="customList"></div>
       <button id="addCustomBtn" class="secondary tiny" type="button">+ Add custom field</button>
@@ -118,15 +123,7 @@
       <div class="add-doc">
         <div>
           <label for="docType">Type</label>
-          <select id="docType">
-            <option value="photo">Passport photo</option>
-            <option value="signature">Signature</option>
-            <option value="pan">PAN card</option>
-            <option value="aadhaar">Aadhaar</option>
-            <option value="marksheet">Marksheet</option>
-            <option value="idProof">Other ID proof</option>
-            <option value="other">Other</option>
-          </select>
+          <select id="docType"></select>
         </div>
         <div>
           <label for="docFile">Image file</label>
@@ -205,15 +202,7 @@
       </div>
 
       <div class="actions hidden" id="resultActions">
-        <select id="resultDocType" class="u-auto">
-          <option value="photo">Passport photo</option>
-          <option value="signature">Signature</option>
-          <option value="pan">PAN card</option>
-          <option value="aadhaar">Aadhaar</option>
-          <option value="marksheet">Marksheet</option>
-          <option value="idProof">Other ID proof</option>
-          <option value="other">Other</option>
-        </select>
+        <select id="resultDocType" class="u-auto"></select>
         <button id="saveToVaultBtn" class="btn btn--primary" type="button">Save to vault</button>
         <button id="downloadBtn" class="secondary" type="button">Download</button>
       </div>
