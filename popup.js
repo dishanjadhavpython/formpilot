@@ -122,9 +122,10 @@ async function vaultOrThrow() {
 // --- Fill -------------------------------------------------------------------
 
 /** One place that turns a fill outcome into a sentence, for both passes. */
-function reportFill(filled, total, skipped) {
-  if (filled > 0) {
-    setStatus(`Filled ${filled} of ${total}. Review before submitting.`, 'ok');
+function reportFill(filled, total, skipped, filledDocs = 0) {
+  const docNote = filledDocs > 0 ? ` +${filledDocs} document${filledDocs === 1 ? '' : 's'}.` : '';
+  if (filled > 0 || filledDocs > 0) {
+    setStatus(`Filled ${filled} of ${total}.${docNote} Review before submitting.`, 'ok');
   } else if (total === 0) {
     setStatus('No fillable fields found on this page.', 'warn');
   } else if (skipped.alreadyFilled > 0) {
@@ -150,11 +151,15 @@ fillBtn.addEventListener('click', async () => {
     // Two passes, and the split is the point.
     //
     // PASS 1 asks the page what it WOULD fill, given only the NAMES of the keys
-    // this vault can answer. No value leaves the popup, so a page that turns out
-    // to want nothing never sees anything.
+    // this vault can answer and the TYPES/mimes of documents it holds. No value
+    // and no image leaves the popup, so a page that turns out to want nothing
+    // never sees anything.
     const meta = M.describeVault(vaultData.fields, vaultData.customFields, vaultData.emails);
+    const docMeta = M.describeDocs(vaultData.documents);
     const payload = {
       keys: meta.keys,
+      docKeys: docMeta.docKeys,
+      docMimes: docMeta.docMimes,
       customFields: meta.customFields,
       emails: meta.emails,
       mappings: host ? (siteMappings[host] ?? {}) : {},
@@ -164,25 +169,27 @@ fillBtn.addEventListener('click', async () => {
     const plan = await send({ type: 'PLAN', ...payload });
     if (!plan?.ok) throw new Error(plan?.error ?? 'The page did not respond.');
 
-    if (plan.count === 0) {
+    if (plan.count === 0 && (plan.docCount ?? 0) === 0) {
       reportFill(0, plan.total, plan.skipped ?? {});
       return;
     }
 
-    // PASS 2 sends the values for those keys only. A page with one email box
-    // receives one email address, not the address book, the phone number and
-    // the PAN.
+    // PASS 2 sends the values/documents for those keys/types only. A page with
+    // one email box receives one email address, not the address book, the
+    // phone number and the PAN - and a page with one upload slot receives one
+    // document, not the whole vault of ID images.
     const all = M.expandValues(vaultData.fields, vaultData.customFields, vaultData.emails);
     const reply = await send({
       type: 'FILL',
       ...payload,
-      values: M.pickValues(all, plan.keys)
+      values: M.pickValues(all, plan.keys),
+      docs: M.pickDocs(vaultData.documents, plan.docTypes)
     });
 
     if (!reply?.ok) throw new Error(reply?.error ?? 'The page did not respond.');
 
     // Pass 2 can still come back with nothing if the page changed underneath us.
-    reportFill(reply.filled, reply.total, reply.skipped ?? {});
+    reportFill(reply.filled, reply.total, reply.skipped ?? {}, reply.filledDocs);
   } catch (err) {
     setStatus(err.message, 'err');
   } finally {

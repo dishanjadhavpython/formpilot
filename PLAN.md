@@ -14,6 +14,7 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 | 3 | Resize/compress to portal spec | ✅ done |
 | 4 | OCR auto-extract (stretch) | ✅ done |
 | 5 | Polish & reliability | ✅ done |
+| 6 | Document (file-upload) autofill | ✅ done |
 
 ---
 
@@ -154,6 +155,47 @@ already gone) and `lock()` (that plus revoking the popup's copy).
 
 **Deferred:** no change-passphrase flow, so a backup is forever tied to the
 passphrase in force when it was taken.
+
+## Phase 6 — Document (file-upload) autofill ✅
+
+Portals that ask you to upload an Aadhaar/PAN/photo/signature image were
+untouched by Phase 2 - `input[type=file]` was explicitly in `SKIP_TYPES`, and
+vault documents were explicitly excluded from the `chrome.storage.session`
+copy the popup/content script fill from. Both gaps close together: document
+labels ("Upload Aadhar Card Image", "Upload Signature") are matched against a
+small synonym table in `lib/match.js` (`DOC_SYNONYMS`, keyed by the same
+`photo`/`signature`/`pan`/`aadhaar`/`idProof` type ids `options.js` already
+uses), and the matching stored image is attached via
+`el.files = dataTransfer.files` on the same trusted click that fills text.
+
+- `publishSession()` now includes one document per type (most recently
+  added) alongside the text fields. `chrome.storage.session` has its own
+  ~10MB quota; a publish that goes over it retries once with documents left
+  out rather than losing text autofill too.
+- Detection reports document *types and mimes* (`docKeys`/`docMimes`),
+  matching how it already reports text *key names* - never the image itself.
+  Real bytes only cross in a FILL, in a `docs` map scoped to the types the
+  page's plan asked for, after the same trusted click as everything else.
+- File inputs use a looser visibility check than text fields
+  (`isFillableDoc`, `content.js`): hiding a file input under a styled "Add
+  File" button with `opacity:0` is normal UI, not a honeypot, so only actual
+  unreachability (`display:none` ancestor, off-screen position) disqualifies
+  one. Reusing the text-field honeypot check verbatim would have broken the
+  feature on the exact pattern it exists to handle.
+- `el.accept` is checked against the stored document's mime
+  (`M.acceptsMime`) so a field pinned to `.pdf` is correctly left alone - the
+  vault only ever stores images.
+
+**Done when:** a vault with Aadhaar/PAN/signature images saved, opened
+against a form with three `input[type=file]` fields labelled "Upload Aadhar
+Card Image" / "Upload PAN Card Image" / "Upload Signature" (one a plain file
+input, one styled as a custom button with the native input visually hidden),
+attaches the right image to the right field on one Fill click, leaves a field
+alone if it already has a file picked, and never touches submit.
+
+**Deferred:** PDF/other document formats (vault only stores images);
+`multiple` file inputs; document types outside the Identity group
+(marksheets etc.); teach-mode labelling for document slots.
 
 ---
 

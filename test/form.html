@@ -112,6 +112,33 @@
     <input id="e1" type="email" autocomplete="email" value="do-not-overwrite@example.com"
            data-expect="keep" data-original="do-not-overwrite@example.com">
 
+    <h2>Document (file-upload) autofill &mdash; Phase 6</h2>
+    <p class="note">
+      Save Aadhaar / PAN / Signature images to the vault first (Options &rarr;
+      Documents), then Fill. The middle one hides its real
+      <code>&lt;input type=file&gt;</code> under a styled button the way most
+      real portals do &mdash; on purpose, to prove FormPilot can still reach it.
+    </p>
+
+    <label for="f1">Upload Signature</label>
+    <input id="f1" type="file" accept="image/*" data-expect="fill-doc">
+
+    <label for="f2">Upload Aadhar Card Image</label>
+    <div style="position:relative; display:inline-block;">
+      <button type="button" style="pointer-events:none;">Add File</button>
+      <input id="f2" type="file" accept="image/*" data-expect="fill-doc"
+             style="position:absolute; inset:0; opacity:0; width:100%; cursor:pointer;">
+    </div>
+
+    <label for="f3">Upload PAN Card Image</label>
+    <input id="f3" type="file" accept="image/*" data-expect="fill-doc">
+
+    <label for="f4">Upload Signature (accepts PDF only &mdash; must stay empty)</label>
+    <input id="f4" type="file" accept=".pdf,application/pdf" data-expect="never-doc">
+
+    <label for="f5">Upload Signature (multiple &mdash; unsupported, must stay empty)</label>
+    <input id="f5" type="file" accept="image/*" multiple data-expect="never-doc">
+
     <button type="submit">Submit (should never be triggered by FormPilot)</button>
   </form>
 
@@ -123,14 +150,17 @@
 
       for (const el of document.querySelectorAll('[data-expect]')) {
         const expect = el.dataset.expect;
-        const value = (el.value || '').trim();
+        const isFile = el.type === 'file';
+        const value = isFile ? '' : (el.value || '').trim();
+        const filled = isFile ? el.files.length > 0 : Boolean(value);
         const name = document.querySelector(`label[for="${el.id}"]`)?.textContent.trim() || el.id;
 
-        if (expect === 'fill') {
+        if (expect === 'fill' || expect === 'fill-doc') {
           want++;
-          if (value) got++;
-        } else if (expect === 'never' && value) {
-          violations.push(`SAFETY VIOLATION: "${name}" was filled with "${value}"`);
+          if (filled) got++;
+        } else if ((expect === 'never' || expect === 'never-doc') && filled) {
+          const what = isFile ? el.files[0].name : value;
+          violations.push(`SAFETY VIOLATION: "${name}" was filled with "${what}"`);
         } else if (expect === 'keep' && value !== el.dataset.original) {
           violations.push(`OVERWRITE: "${name}" was changed to "${value}"`);
         }

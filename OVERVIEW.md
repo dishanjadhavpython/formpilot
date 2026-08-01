@@ -64,10 +64,10 @@ they cannot call each other's functions directly, MV3 forbids it:
 
 - **`background.js`** — the service worker. Runs the idle auto-lock alarm,
   scans each new page for fillable fields (badging the toolbar icon), and is
-  the only thing that ever releases real vault *values* to a content script,
-  gated on sender identity, an http(s) tab, the vault being unlocked, and
-  suggestions being on — re-checked on every release, not cached from
-  detection time.
+  the only thing that ever releases real vault *values and documents* to a
+  content script, gated on sender identity, an http(s) tab, the vault being
+  unlocked, and suggestions being on — re-checked on every release, not
+  cached from detection time.
 - **`popup.js`** — the toolbar button's UI. Sends a `PLAN` (key names only),
   then a `FILL` (values for just those keys) — two messages on purpose, so a
   page that turns out to want nothing never sees anything.
@@ -92,7 +92,7 @@ Full detail, with the *why* behind each: **[README.md](README.md)**.
 | | |
 |---|---|
 | Encrypted vault | Name, DOB, phone, address, PAN, masked Aadhaar, unlimited custom fields and labelled emails, document images by type |
-| Autofill | Notices a form on its own (badge + inline chip), or click "Fill this form". Infers field meaning from label/name/autocomplete/synonyms. Never submits, never fills passwords, never overwrites, never fills someone else's field with your data |
+| Autofill | Notices a form on its own (badge + inline chip), or click "Fill this form". Infers field meaning from label/name/autocomplete/synonyms, including single-file image uploads (Aadhaar/PAN/photo/signature) matched by label. Never submits, never fills passwords, never overwrites, never fills someone else's field with your data |
 | Teach mode | Click a field, label it, remembered per-site for next time |
 | Image tool | Compress into an exact KB band (not just a maximum) at a target pixel size; 3 presets + custom specs |
 | OCR | On-device PAN/Aadhaar/marksheet reading, editable suggestions, nothing saved until you say so |
@@ -201,8 +201,11 @@ run.md                 first run, dev loop, troubleshooting
 
 - English OCR only; no image pre-processing (deskew/threshold), which would be
   the biggest accuracy win on phone photos.
-- Autofill doesn't handle checkboxes, radio groups, file inputs, or
-  same-origin iframes.
+- Autofill doesn't handle checkboxes, radio groups, `multiple` file inputs, or
+  same-origin iframes. Single-file image uploads are handled for a fixed set
+  of document types (photo, signature, PAN, Aadhaar, other ID proof) — see
+  Phase 6 in PLAN.md — but not marksheets/other types, and not PDF uploads
+  (the vault only ever stores images).
 - The image tool scales but doesn't crop, so an exact-aspect-ratio spec (e.g.
   3.5×4.5 cm) needs cropping done elsewhere first.
 - No change-passphrase flow — a backup is tied to the passphrase in force when

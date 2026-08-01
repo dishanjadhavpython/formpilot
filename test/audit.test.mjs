@@ -152,7 +152,20 @@ console.log('\n5. Vault data never reaches a web page unasked');
   ok('DETECT message is built', detect.length > 0);
   ok('DETECT carries no fields:', !/\bfields:/.test(detect), detect.slice(0, 80));
   ok('DETECT carries no values:', !/\bvalues:/.test(detect));
+  ok('DETECT carries no dataUrl:', !/\bdataUrl:/.test(detect),
+    'documents get the same treatment as text values - types and mimes only');
   ok('DETECT carries key names only', /\bkeys:\s*meta\.keys/.test(detect));
+  ok('DETECT carries document types only', /\bdocKeys:\s*meta\.docKeys/.test(detect));
+}
+
+{
+  const describeDocs = /function describeDocs\([\s\S]{0,600}?\n  \}/.exec(code['lib/match.js'])?.[0] ?? '';
+  ok('describeDocs is defined', describeDocs.length > 0);
+  ok('describeDocs returns docKeys/docMimes',
+    /return\s*\{\s*docKeys,\s*docMimes\s*\}/.test(describeDocs));
+  ok('describeDocs never returns dataUrl',
+    !/return[\s\S]*dataUrl/.test(describeDocs),
+    'documents get the same "names/labels only" treatment text fields already have');
 }
 
 ok('describeVault strips values',

@@ -13,10 +13,15 @@
 //   * The passphrase itself is never stored anywhere, in any form.
 //
 // One deliberate exception, added in Phase 2: while unlocked we publish the
-// text fields (NOT the documents, NOT the key) to chrome.storage.session so the
-// popup can fill forms. Session storage is held in memory, is never written to
-// disk, and is restricted to trusted extension contexts - a content script on a
-// web page cannot read it. It is dropped on Lock and when Chrome closes.
+// text fields (NOT the key) to chrome.storage.session so the popup can fill
+// forms. Session storage is held in memory, is never written to disk, and is
+// restricted to trusted extension contexts - a content script on a web page
+// cannot read it. It is dropped on Lock and when Chrome closes.
+//
+// Phase 6 widened this to include documents too (one per type, the most
+// recently added), so the same fill click can attach a stored Aadhaar/PAN/
+// signature image to a matching file input. See publishSession() below for
+// the size trade-off that comes with that.
 
 import { createVault, unlockVault, encryptVault } from './lib/crypto.js';
 import { DEFAULT_PRESETS, fitToBand } from './lib/image.js';
@@ -219,19 +224,42 @@ function newId() {
 // --- Session cache for the popup --------------------------------------------
 
 /**
- * Publish just enough for autofill: the text fields and custom fields.
- * Documents are excluded - the popup never fills file inputs, and images would
- * bloat the in-memory cache for no benefit.
+ * One document per type, most recently added wins. Bounds what
+ * publishSession() sends to chrome.storage.session regardless of how many
+ * versions of an ID the vault has accumulated over time - only the current
+ * one is ever useful for filling a file input.
+ */
+function latestDocsByType(documents) {
+  const byType = new Map();
+  for (const doc of documents) {
+    const existing = byType.get(doc.type);
+    if (!existing || doc.addedAt > existing.addedAt) byType.set(doc.type, doc);
+  }
+  return [...byType.values()].map(({ type, name, mime, dataUrl, bytes }) =>
+    ({ type, name, mime, dataUrl, bytes }));
+}
+
+/**
+ * Publish just enough for autofill: the text fields, custom fields, and one
+ * document per type (see latestDocsByType). chrome.storage.session carries
+ * its own ~10MB total quota, separate from local's - a vault with several
+ * near-the-cap ID images can exceed it, so a quota failure retries once with
+ * documents left out rather than losing text autofill along with them.
  */
 async function publishSession() {
-  await chrome.storage.session.set({
-    [SESSION_KEY]: {
-      fields: vault.fields,
-      emails: vault.emails,
-      customFields: vault.customFields,
-      unlockedAt: Date.now()
-    }
-  });
+  const payload = {
+    fields: vault.fields,
+    emails: vault.emails,
+    customFields: vault.customFields,
+    documents: latestDocsByType(vault.documents),
+    unlockedAt: Date.now()
+  };
+  try {
+    await chrome.storage.session.set({ [SESSION_KEY]: payload });
+  } catch (err) {
+    console.warn('[FormPilot] session publish over quota, retrying without documents:', err);
+    await chrome.storage.session.set({ [SESSION_KEY]: { ...payload, documents: [] } });
+  }
   // Start the idle countdown in the service worker.
   chrome.runtime.sendMessage({ type: 'ACTIVITY' }).catch(() => {});
 }

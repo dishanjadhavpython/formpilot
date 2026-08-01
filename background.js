@@ -148,6 +148,8 @@ async function detectForms(tabId, url) {
     const reply = await chrome.tabs.sendMessage(tabId, {
       type: 'DETECT',
       keys: meta.keys,
+      docKeys: meta.docKeys,
+      docMimes: meta.docMimes,
       emails: meta.emails,
       customFields: meta.customFields,
       mappings: host ? (siteMappings[host] ?? {}) : {},
@@ -176,11 +178,16 @@ const MAX_RELEASED_KEYS = 60;
  * returns no values at all, so there is nothing here to leak by accident.
  *
  * Mirrors describeVault() in lib/match.js, which the popup uses for the same
- * purpose down the same code path.
+ * purpose down the same code path. docKeys/docMimes are the document-upload
+ * equivalent - a type and a mime, never the image itself - mirroring
+ * describeDocs() in lib/match.js.
  */
 function publicMeta(vaultData) {
+  const documents = vaultData.documents ?? [];
   return {
     keys: Object.keys(expandValues(vaultData)),
+    docKeys: documents.map((doc) => doc.type),
+    docMimes: Object.fromEntries(documents.map((doc) => [doc.type, doc.mime])),
     customFields: (vaultData.customFields ?? [])
       .filter((field) => field?.label && field?.value)
       .map((field) => ({ label: field.label })),
@@ -227,13 +234,19 @@ function expandValues(vaultData) {
   return values;
 }
 
+const MAX_RELEASED_DOC_TYPES = 20;
+
 /**
- * Hand a content script the values for the keys it planned, and nothing else.
+ * Hand a content script the values and documents its plan needs, and nothing
+ * else. One authorization path for both, rather than two to keep in sync -
+ * everything below (real http(s) tab, suggestFills on, vault unlocked)
+ * applies equally to a phone number and a signature image.
  *
- * @param {string[]} keys   vault key names the page's plan needs
- * @param {object} sender   the runtime sender, already checked to be ours
+ * @param {string[]} keys      vault key names the page's plan needs
+ * @param {string[]} docTypes  document types the page's plan needs
+ * @param {object} sender      the runtime sender, already checked to be ours
  */
-async function releaseValues(keys, sender) {
+async function releaseFill(keys, docTypes, sender) {
   // Must come from a content script in a real tab, on an ordinary web page.
   if (!sender?.tab?.id || !/^https?:/i.test(sender.tab.url ?? sender.url ?? '')) {
     return { ok: false, error: 'Fill can only be requested from a web page.' };
@@ -257,8 +270,19 @@ async function releaseValues(keys, sender) {
     if (Object.hasOwn(all, key)) values[key] = all[key];
   }
 
+  const wantedDocTypes = (Array.isArray(docTypes) ? docTypes : [])
+    .filter((type) => typeof type === 'string' && type.length > 0 && type.length <= 100)
+    .slice(0, MAX_RELEASED_DOC_TYPES);
+
+  const docs = {};
+  for (const doc of vaultData.documents ?? []) {
+    if (wantedDocTypes.includes(doc.type) && !docs[doc.type]) {
+      docs[doc.type] = { name: doc.name, mime: doc.mime, dataUrl: doc.dataUrl };
+    }
+  }
+
   armAutoLock();   // filling is activity
-  return { ok: true, values, highlight: settings?.highlightFills !== false };
+  return { ok: true, values, docs, highlight: settings?.highlightFills !== false };
 }
 
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
@@ -322,8 +346,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
 
     case 'REQUEST_FILL':
-      // The in-page chip asking for the values it is about to type.
-      releaseValues(message.keys, sender).then(sendResponse);
+      // The in-page chip asking for the values and documents it is about to write.
+      releaseFill(message.keys, message.docTypes, sender).then(sendResponse);
       return true;
 
     case 'LOCK_NOW':

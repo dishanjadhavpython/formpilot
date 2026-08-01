@@ -22,7 +22,11 @@ These are not preferences. Breaking one is a bug, even if the feature works.
    - `session.vaultData` — decrypted text fields while unlocked, so the popup
      can fill forms. `chrome.storage.session` is **memory-only, never written to
      disk**, and pinned to `TRUSTED_CONTEXTS` so content scripts cannot read it.
-     Cleared on Lock and on browser restart. Documents are excluded.
+     Cleared on Lock and on browser restart. Since Phase 6, this also carries
+     one document per type (most recently added), so a `FILL` can attach a
+     stored Aadhaar/PAN/signature image to a matching `input[type=file]` —
+     `options.js`'s `publishSession()` falls back to publishing text only if
+     that pushes the session store over its own ~10MB quota.
    - `local.settings` — UI preferences. No personal data.
    - `local.siteMappings` — `hostname → { cssSelector: vaultFieldName }`. Field
      *names*, never values. Unencrypted because the popup must read it while the
@@ -37,10 +41,13 @@ These are not preferences. Breaking one is a bug, even if the feature works.
    The content script lives inside somebody else's page, so treat every value
    that reaches it as spent. `DETECT` and `PLAN` carry **key names and labels
    only** — `describeVault()` in `lib/match.js` and `publicMeta()` in
-   `background.js` produce them, and neither can return a value. Real values
-   cross only in a `FILL`, only for the keys that fill is about to write, and
-   only after a trusted click. Putting `fields:` back on a `DETECT` message
-   turns ordinary browsing into broadcasting; `npm run audit` fails if you do.
+   `background.js` produce them, and neither can return a value. The same
+   applies to documents: `DETECT`/`PLAN` carry only a document's *type* and
+   *mime* (`describeDocs()`, `docKeys`/`docMimes`), never its image data. Real
+   values and images cross only in a `FILL`, only for the keys/types that fill
+   is about to write, and only after a trusted click. Putting `fields:` or a
+   `dataUrl:` back on a `DETECT` message turns ordinary browsing into
+   broadcasting; `npm run audit` fails if you do.
 4. **No network. Ever.** No `fetch`, no CDN, no analytics, no telemetry. If a
    feature seems to need the network, it is the wrong feature.
 5. **No remote code (MV3 requirement).** Third-party libraries get vendored into

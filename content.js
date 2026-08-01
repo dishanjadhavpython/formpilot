@@ -34,6 +34,7 @@ if (!globalThis.__formPilotContentLoaded) {
   // Ceiling on how many values one fill may pull out of the vault. A page with
   // 400 inputs is not a form.
   const MAX_FILL_KEYS = 60;
+  const MAX_FILL_DOC_TYPES = 20;
 
   // Input types that are never fillable from the vault. `password` is the one
   // that matters; the rest are simply not text.
@@ -126,23 +127,13 @@ if (!globalThis.__formPilotContentLoaded) {
   // Finding fields
   // ==========================================================================
 
-  function isFillable(el) {
-    if (el.disabled || el.readOnly) return false;
-
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'input' && SKIP_TYPES.has((el.type || 'text').toLowerCase())) return false;
-
-    const style = getComputedStyle(el);
-    if (style.visibility === 'hidden' || style.display === 'none' || style.opacity === '0') {
-      return false;
-    }
-
-    // display:none on an ANCESTOR. A fixed-position element legitimately has no
-    // offsetParent, so it is exempt.
+  // display:none on an ANCESTOR. A fixed-position element legitimately has no
+  // offsetParent, so it is exempt. Shared by isFillable and isFillableDoc:
+  // both need to know an element is actually reachable in the page's layout,
+  // even though they disagree below on what counts as "visible enough".
+  function isReachable(el, style) {
+    if (style.display === 'none') return false;
     if (el.offsetParent === null && style.position !== 'fixed') return false;
-
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) return false;
 
     // Parked off-screen. `position:absolute; left:-9999px` is THE honeypot
     // trick: the field is fully rendered, so size, visibility, display and
@@ -151,9 +142,26 @@ if (!globalThis.__formPilotContentLoaded) {
     //
     // Measured in DOCUMENT coordinates, not viewport ones - a legitimate field
     // the user has simply scrolled past also has a negative viewport rect.
+    const rect = el.getBoundingClientRect();
     const docRight = rect.right + window.scrollX;
     const docBottom = rect.bottom + window.scrollY;
     if (docRight <= 0 || docBottom <= 0) return false;
+
+    return true;
+  }
+
+  function isFillable(el) {
+    if (el.disabled || el.readOnly) return false;
+
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'input' && SKIP_TYPES.has((el.type || 'text').toLowerCase())) return false;
+
+    const style = getComputedStyle(el);
+    if (style.visibility === 'hidden' || style.opacity === '0') return false;
+    if (!isReachable(el, style)) return false;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return false;
 
     // Collapsed by clip / clip-path - the "visually hidden" pattern.
     if (style.clipPath === 'inset(50%)' || style.clip === 'rect(0px, 0px, 0px, 0px)') return false;
@@ -163,6 +171,26 @@ if (!globalThis.__formPilotContentLoaded) {
 
   function candidates() {
     return [...document.querySelectorAll('input, select, textarea')].filter(isFillable);
+  }
+
+  // A file input's honeypot signal is narrower than a text field's. Hiding a
+  // TEXT field with opacity:0 is a bot trap - nobody styles a real text box
+  // that way. Hiding a FILE input with opacity:0 (or clip, or zero size)
+  // under a styled <button>/<label> is completely ordinary: it's how nearly
+  // every custom "Add File" control works, including the one this feature
+  // exists to handle. So this only checks that the input is actually
+  // reachable in the page's layout, not that it looks a particular way.
+  function isFillableDoc(el) {
+    if (el.disabled) return false;
+    if (el.tagName.toLowerCase() !== 'input' || (el.type || '').toLowerCase() !== 'file') return false;
+    if (el.multiple) return false;                        // one document per slot, for now
+    if (el.files && el.files.length > 0) return false;     // never overwrite a file already picked
+
+    return isReachable(el, getComputedStyle(el));
+  }
+
+  function fileCandidates() {
+    return [...document.querySelectorAll('input[type=file]')].filter(isFillableDoc);
   }
 
   // ==========================================================================
@@ -233,6 +261,77 @@ if (!globalThis.__formPilotContentLoaded) {
     return true;
   }
 
+  // ==========================================================================
+  // Document (file-upload) filling
+  // ==========================================================================
+
+  /**
+   * Work out which file inputs WOULD be filled and with which document type,
+   * without ever touching the page or being handed image bytes. `docKeys` is
+   * the set of document types the vault holds an image for - `aadhaar`,
+   * `pan`, `signature` and so on - never the image itself. Mirrors planFill()
+   * for the same reason: a suggestion must never promise a fill it can't
+   * deliver, and detection must never need real data to make that promise.
+   */
+  function planDocFill({ docKeys, docMimes = {} }) {
+    const available = safeKeys(docKeys);
+    const dictionary = M.buildDocDictionary();
+    const plan = [];
+
+    for (const el of fileCandidates()) {
+      const guess = M.inferKey(M.describeField(el), dictionary);
+      if (!guess || !available.has(guess.key)) continue;
+      if (!M.acceptsMime(el.getAttribute('accept'), docMimes[guess.key])) continue;
+      plan.push({ el, type: guess.key });
+    }
+    return plan;
+  }
+
+  /**
+   * Decode a stored document's data: URL into a File, WITHOUT fetch() - every
+   * first-party file is grepped for that with no exceptions (see
+   * test/audit.test.mjs), and options.js only ever writes base64 data: URLs
+   * here, so a manual decode is one line longer and keeps that invariant
+   * genuinely true rather than technically true.
+   */
+  function dataUrlToFile(dataUrl, name, mime) {
+    const comma = String(dataUrl ?? '').indexOf(',');
+    if (comma === -1) return null;
+
+    const meta = dataUrl.slice(5, comma);   // e.g. "image/jpeg;base64"
+    if (!/;base64$/i.test(meta)) return null;
+
+    let binary;
+    try {
+      binary = atob(dataUrl.slice(comma + 1));
+    } catch {
+      return null;
+    }
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    return new File([bytes], name || 'document', { type: mime || meta.split(';')[0] || 'application/octet-stream' });
+  }
+
+  /** Attach one stored document to one file input via a DataTransfer - the
+   * only script-driven way to populate input.files. */
+  function fillFileInput(el, doc) {
+    const file = dataUrlToFile(doc.dataUrl, doc.name, doc.mime);
+    if (!file) return false;
+
+    try {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      el.files = dt.files;
+    } catch {
+      return false;
+    }
+
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
   /**
    * Work out what WOULD be filled, without touching the page and WITHOUT ever
    * being told a value. `keys` is the set of vault keys that hold something -
@@ -285,17 +384,22 @@ if (!globalThis.__formPilotContentLoaded) {
     return { plan, skipped, total };
   }
 
-  /** The plan as a message: a count and the key names needed, no elements. */
+  /** The plan as a message: a count and the key/type names needed, no elements. */
   function describePlan(message) {
     const { plan, skipped, total } = planFill(message);
     const keys = [...new Set(plan.map((item) => item.key))].slice(0, MAX_FILL_KEYS);
-    return { count: plan.length, keys, total, skipped };
+
+    const docPlan = planDocFill(message);
+    const docTypes = [...new Set(docPlan.map((item) => item.type))].slice(0, MAX_FILL_DOC_TYPES);
+
+    return { count: plan.length, keys, total, skipped, docCount: docPlan.length, docTypes };
   }
 
   /**
-   * Fill from `values`, which holds ONLY the keys a preceding PLAN asked for.
-   * The plan is recomputed here rather than trusted from before, so a page that
-   * changed in between cannot get a value written somewhere it was not planned.
+   * Fill from `values`/`docs`, which hold ONLY the keys/types a preceding PLAN
+   * asked for. Both plans are recomputed here rather than trusted from before,
+   * so a page that changed in between cannot get something written somewhere
+   * it was not planned.
    */
   function fillForm(message) {
     clearOutlines();
@@ -314,8 +418,20 @@ if (!globalThis.__formPilotContentLoaded) {
       if (highlight) outline(el);
     }
 
-    showToast(filled.length, total, skipped);
-    return { filled: filled.length, total, skipped, details: filled };
+    const docs = (message.docs && typeof message.docs === 'object') ? message.docs : {};
+    const docPlan = planDocFill({ ...message, docKeys: Object.keys(docs) });
+    let filledDocs = 0;
+
+    for (const { el, type } of docPlan) {
+      const doc = docs[type];
+      if (!doc?.dataUrl) continue;
+      if (!fillFileInput(el, doc)) continue;
+      filledDocs++;
+      if (highlight) outline(el);
+    }
+
+    showToast(filled.length, total, skipped, filledDocs);
+    return { filled: filled.length, total, skipped, details: filled, filledDocs };
   }
 
   // ==========================================================================
@@ -334,15 +450,17 @@ if (!globalThis.__formPilotContentLoaded) {
   function detect(message) {
     pendingMeta = message;
     const { plan } = planFill(message);
+    const docPlan = planDocFill(message);
+    const total = plan.length + docPlan.length;
 
-    if (plan.length > 0) {
-      if (message.showChip !== false) showSuggestion(plan.length);
+    if (total > 0) {
+      if (message.showChip !== false) showSuggestion(total);
     } else {
       // Nothing yet. Forms rendered late by a framework are the common case, so
       // re-check once the user actually touches a field rather than giving up.
       armLateDetect();
     }
-    return { count: plan.length };
+    return { count: total };
   }
 
   function armLateDetect() {
@@ -353,34 +471,36 @@ if (!globalThis.__formPilotContentLoaded) {
   function onLateFocus(event) {
     if (suggestionDismissed || !pendingMeta) return;
     const el = event.target;
-    if (!(el instanceof Element) || !el.matches('input, select, textarea')) return;
+    if (!(el instanceof Element) || !el.matches('input, select, textarea, input[type=file]')) return;
 
     const { plan } = planFill(pendingMeta);
-    if (plan.length === 0) return;
+    const docPlan = planDocFill(pendingMeta);
+    const total = plan.length + docPlan.length;
+    if (total === 0) return;
 
     document.removeEventListener('focusin', onLateFocus, true);
-    if (pendingMeta.showChip !== false) showSuggestion(plan.length);
+    if (pendingMeta.showChip !== false) showSuggestion(total);
   }
 
   /**
    * The chip's Fill button. This is the moment values are allowed into the page,
    * so it is the moment everything is checked: a real click, and then the
-   * service worker hands back only the keys this plan needs.
+   * service worker hands back only the keys/types this plan needs.
    */
   async function fillFromChip(event) {
     // A page cannot forge this. element.click() and dispatchEvent() both produce
     // isTrusted:false, so a script that reached our button still cannot fire it.
     if (!event.isTrusted || !pendingMeta) return;
 
-    const { keys } = describePlan(pendingMeta);
-    if (keys.length === 0) return;
+    const { keys, docTypes } = describePlan(pendingMeta);
+    if (keys.length === 0 && docTypes.length === 0) return;
 
-    const reply = await chrome.runtime.sendMessage({ type: 'REQUEST_FILL', keys }).catch(() => null);
+    const reply = await chrome.runtime.sendMessage({ type: 'REQUEST_FILL', keys, docTypes }).catch(() => null);
     if (!reply?.ok) {
       showMessage('FormPilot', reply?.error ?? 'The vault is locked.');
       return;
     }
-    fillForm({ ...pendingMeta, values: reply.values, highlight: reply.highlight });
+    fillForm({ ...pendingMeta, values: reply.values, docs: reply.docs, highlight: reply.highlight });
   }
 
   function showSuggestion(count) {
@@ -549,12 +669,15 @@ if (!globalThis.__formPilotContentLoaded) {
     return card;
   }
 
-  function showToast(filled, total, skipped) {
+  function showToast(filled, total, skipped, filledDocs = 0) {
     const extra = skipped.alreadyFilled
       ? ` ${skipped.alreadyFilled} already had a value.`
       : '';
+    const docNote = filledDocs > 0
+      ? ` +${filledDocs} document${filledDocs === 1 ? '' : 's'} attached.`
+      : '';
 
-    showMessage(`FormPilot filled ${filled} of ${total}`, `Review before you submit.${extra}`);
+    showMessage(`FormPilot filled ${filled} of ${total}${docNote}`, `Review before you submit.${extra}`);
 
     clearTimeout(showToast.timer);
     showToast.timer = setTimeout(removeUi, 6000);

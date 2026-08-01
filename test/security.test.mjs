@@ -43,11 +43,20 @@ const CUSTOM = [
   { id: '2', label: 'Passport no.', value: 'Z1234567' }
 ];
 
+// A distinctive fake "image" body per document, so "did the bytes leak?" is
+// the same substring search the text fields already get.
+const DOCUMENTS = [
+  { type: 'aadhaar',   name: 'aadhaar.jpg',   mime: 'image/jpeg', dataUrl: 'data:image/jpeg;base64,AADHAARBYTES==' },
+  { type: 'pan',       name: 'pan.jpg',       mime: 'image/jpeg', dataUrl: 'data:image/jpeg;base64,PANCARDBYTES==' },
+  { type: 'signature', name: 'sig.png',       mime: 'image/png',  dataUrl: 'data:image/png;base64,SIGNATUREBYTES==' }
+];
+
 const SECRETS = [
   ...Object.values(FIELDS),
   ...EMAILS.map((e) => e.value),
   ...CUSTOM.map((c) => c.value),
-  'Dishan', 'Jadhav', '9876543210', 'ABCDE1234F', '9012', 'Baker Street'
+  'Dishan', 'Jadhav', '9876543210', 'ABCDE1234F', '9012', 'Baker Street',
+  'AADHAARBYTES', 'PANCARDBYTES', 'SIGNATUREBYTES'
 ];
 
 // ============================================================================
@@ -79,6 +88,23 @@ ok('email labels survive', meta.emails.some((e) => e.label === 'work'));
 ok('custom labels survive', meta.customFields.some((c) => c.label === 'Employee ID'));
 ok('email VALUES do not', meta.emails.every((e) => e.value === undefined));
 ok('custom VALUES do not', meta.customFields.every((c) => c.value === undefined));
+
+// ============================================================================
+console.log('\n1b. Document detection metadata carries no image data either');
+// ============================================================================
+//
+// The same DETECT payload also carries docKeys/docMimes now (Phase 6). A mime
+// type is metadata, same category as an email label - the actual image must
+// never be in here.
+
+const docMeta = M.describeDocs(DOCUMENTS);
+const docWire = JSON.stringify(docMeta);
+
+for (const secret of SECRETS) {
+  ok(`docs: no "${secret.slice(0, 24)}"`, !docWire.includes(secret));
+}
+ok('docs: says what CAN be answered', ['aadhaar', 'pan', 'signature'].every((t) => docMeta.docKeys.includes(t)));
+ok('docs: mime survives, per type', docMeta.docMimes.aadhaar === 'image/jpeg' && docMeta.docMimes.signature === 'image/png');
 
 // ============================================================================
 console.log('\n2. Detection and filling agree on what is fillable');
@@ -115,6 +141,14 @@ ok('...nor the other email addresses', !leaked.includes('dishan.work@example.com
 ok('unknown keys are ignored', Object.keys(M.pickValues(values, ['nonsense', '__proto__'])).length === 0,
   'a page asking for a key we do not have gets nothing, not undefined');
 ok('an empty request yields nothing', Object.keys(M.pickValues(values, [])).length === 0);
+
+console.log('\n   ...and the same is true of documents');
+const narrowedDocs = M.pickDocs(DOCUMENTS, ['pan']);
+ok('returns exactly the asked-for type', JSON.stringify(Object.keys(narrowedDocs)) === '["pan"]');
+const leakedDocs = JSON.stringify(narrowedDocs);
+ok('a signature-only request never sees the Aadhaar image', !leakedDocs.includes('AADHAARBYTES'));
+ok('...nor the signature', !leakedDocs.includes('SIGNATUREBYTES'));
+ok('an empty doc-type request yields nothing', Object.keys(M.pickDocs(DOCUMENTS, [])).length === 0);
 
 // ============================================================================
 console.log('\n4. Fields belonging to other people are still refused');
@@ -270,7 +304,7 @@ const OTHER_EXTENSION = { id: 'someotherextensionsomeotherexten' };
 ok('a locked vault releases nothing',
   (await ask({ type: 'REQUEST_FILL', keys: ['email'] }, PAGE)).ok === false);
 
-storage.session.vaultData = { fields: FIELDS, emails: EMAILS, customFields: CUSTOM };
+storage.session.vaultData = { fields: FIELDS, emails: EMAILS, customFields: CUSTOM, documents: DOCUMENTS };
 
 const released = await ask({ type: 'REQUEST_FILL', keys: ['email', 'phone'] }, PAGE);
 ok('an unlocked vault releases the asked-for keys', released.ok === true);
@@ -285,6 +319,32 @@ ok('unknown keys are dropped, not undefined',
 
 const flood = await ask({ type: 'REQUEST_FILL', keys: Array(500).fill('email') }, PAGE);
 ok('a flood of keys is capped', Object.keys(flood.values).length <= 60);
+
+// Same authorization path, same scoping - for documents.
+const releasedDocs = await ask({ type: 'REQUEST_FILL', keys: [], docTypes: ['signature'] }, PAGE);
+ok('an unlocked vault releases the asked-for document type', releasedDocs.ok === true);
+ok('exactly that type, no more',
+  JSON.stringify(Object.keys(releasedDocs.docs ?? {})) === '["signature"]',
+  Object.keys(releasedDocs.docs ?? {}).join(','));
+ok('the document bytes are correct', releasedDocs.docs.signature.dataUrl === DOCUMENTS[2].dataUrl);
+ok('a signature-only request never carries the Aadhaar image',
+  !JSON.stringify(releasedDocs.docs).includes('AADHAARBYTES'));
+
+const overreachDocs = await ask({ type: 'REQUEST_FILL', keys: [], docTypes: ['pan', 'notAType'] }, PAGE);
+ok('unknown document types are dropped, not undefined',
+  !Object.hasOwn(overreachDocs.docs, 'notAType'), Object.keys(overreachDocs.docs).join(','));
+
+const floodDocs = await ask({ type: 'REQUEST_FILL', keys: [], docTypes: Array(500).fill('pan') }, PAGE);
+ok('a flood of document types is capped', Object.keys(floodDocs.docs).length <= 20);
+
+const lockedDocRequest = await (async () => {
+  const saved = storage.session.vaultData;
+  delete storage.session.vaultData;
+  const reply = await ask({ type: 'REQUEST_FILL', keys: [], docTypes: ['pan'] }, PAGE);
+  storage.session.vaultData = saved;
+  return reply;
+})();
+ok('a locked vault releases no documents either', lockedDocRequest.ok === false);
 
 // Where the request comes from decides whether it is answered at all.
 ok('another extension is refused outright',

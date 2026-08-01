@@ -44,8 +44,8 @@ const MUTATIONS = [
     (s) => s.replace("'password', 'hidden'", "'hidden'")],
 
   ['auto-submits the form after filling', 'content.js',
-    (s) => s.replace('    showToast(filled.length, total, skipped);',
-      '    el.form.submit();\n    showToast(filled.length, total, skipped);')],
+    (s) => s.replace('    showToast(filled.length, total, skipped, filledDocs);',
+      '    el.form.submit();\n    showToast(filled.length, total, skipped, filledDocs);')],
 
   ['loses the OCR workerBlobURL override', 'lib/ocr.js',
     (s) => s.replace('workerBlobURL: false', 'workerBlobURL: true')],

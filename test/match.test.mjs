@@ -133,5 +133,46 @@ console.log('\n9. A taught custom field still outranks a generic guess');
 const dictC = M.buildDictionary([{ label: 'Email', value: 'x@y.z' }], []);
 expect('custom "Email" beats builtin', M.inferKey(M.normalise('Email'), dictC)?.key, 'custom:Email');
 
+console.log('\n10. Document (file-upload) label matching');
+const docDict = M.buildDocDictionary();
+const inferDoc = (text) => M.inferKey(M.normalise(text), docDict)?.key ?? null;
+
+expect('Upload Aadhar Card Image', inferDoc('Upload Aadhar Card Image'), 'aadhaar');
+expect('Upload PAN Card Image',    inferDoc('Upload PAN Card Image'),    'pan');
+expect('Upload Signature',         inferDoc('Upload Signature'),         'signature');
+expect('Passport size photo',      inferDoc('Passport size photo'),      'photo');
+expect('Proof of Identity',        inferDoc('Proof of Identity'),        'idProof');
+expect('Aadhar Card',              inferDoc('Aadhar Card'),              'aadhaar');
+
+console.log('\n   ...and refuses labels with no real synonym');
+expect('Upload File',              inferDoc('Upload File'),              null);
+expect('Attachment',               inferDoc('Attachment'),               null);
+expect('Supporting Document',      inferDoc('Supporting Document'),      null);
+
+console.log('\n11. acceptsMime');
+expect('no accept attr allows anything',      M.acceptsMime('', 'image/jpeg'),                true);
+expect('image/* allows jpeg',                 M.acceptsMime('image/*', 'image/jpeg'),          true);
+expect('exact mime match',                    M.acceptsMime('image/png', 'image/png'),         true);
+expect('.jpg token matches image/jpeg',       M.acceptsMime('.jpg,.png', 'image/jpeg'),        true);
+expect('.jpeg token matches image/jpeg too',  M.acceptsMime('.jpeg', 'image/jpeg'),             true);
+expect('.pdf-only rejects an image',          M.acceptsMime('.pdf,application/pdf', 'image/jpeg'), false);
+expect('mismatched mime is rejected',         M.acceptsMime('image/png', 'image/jpeg'),        false);
+
+console.log('\n12. describeDocs / pickDocs');
+const documents = [
+  { type: 'aadhaar',   name: 'aadhaar.jpg',   mime: 'image/jpeg', dataUrl: 'data:image/jpeg;base64,AAAA' },
+  { type: 'pan',       name: 'pan.jpg',       mime: 'image/jpeg', dataUrl: 'data:image/jpeg;base64,BBBB' },
+  { type: 'signature', name: 'sig.png',       mime: 'image/png',  dataUrl: 'data:image/png;base64,CCCC' }
+];
+const docMeta = M.describeDocs(documents);
+expect('docKeys lists every type', JSON.stringify(docMeta.docKeys.sort()), JSON.stringify(['aadhaar', 'pan', 'signature']));
+expect('docMimes carries the mime', docMeta.docMimes.aadhaar, 'image/jpeg');
+expect('describeDocs never carries a dataUrl', JSON.stringify(docMeta).includes('data:'), false);
+
+const picked = M.pickDocs(documents, ['pan']);
+expect('pickDocs returns only the asked-for type', JSON.stringify(Object.keys(picked)), '["pan"]');
+expect('pickDocs keeps the dataUrl for a released type', picked.pan.dataUrl, 'data:image/jpeg;base64,BBBB');
+expect('an empty request yields nothing', Object.keys(M.pickDocs(documents, [])).length, 0);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
