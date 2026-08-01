@@ -78,6 +78,20 @@ These are not preferences. Breaking one is a bug, even if the feature works.
 - `chrome.storage.local` is ~10 MB. Images are the only thing that will ever
   threaten that.
 
+## Proactive detection
+
+`background.js` scans a page on load and badges the toolbar with how many fields
+it could fill. This is the one place the extension scripts a page the user did
+not explicitly ask about, so it is gated three ways and **all three must hold**:
+
+1. the page is `http(s)` — never `chrome://`, never the Web Store;
+2. the vault is **unlocked** — a locked vault means zero page scripting;
+3. the `suggestFills` setting is on.
+
+Detection counts and offers. It never fills — `DETECT` calls `planFill()`, which
+touches nothing. Filling is always one explicit click, from the popup or the
+inline chip.
+
 ## OCR
 
 - Recognition is on-device and must stay that way. `lib/ocr.js` overrides
@@ -93,7 +107,7 @@ These are not preferences. Breaking one is a bug, even if the feature works.
 ```
 manifest.json     background.js (service worker)
 popup.html/js     options.html/js   (vault + image tool + OCR)
-content.js        (field detection + fill; injected on demand, not declared)
+content.js        (field detection + fill; injected programmatically, never declared)
 lib/              crypto.js, match.js, image.js, ocr.js, backup.js
 vendor/           third-party libs, local copies only
 icons/

@@ -40,6 +40,11 @@ if (!globalThis.__formPilotContentLoaded) {
         case 'FILL':
           sendResponse({ ok: true, ...fillForm(message) });
           break;
+        case 'DETECT':
+          // Look, count, offer — never fill. Filling is always a click away.
+          sendResponse({ ok: true, count: detect(message) });
+          break;
+
         case 'TEACH': {
           // Offer every key we actually hold a value for, so the user cannot
           // map a field to something the vault cannot fill.
@@ -67,14 +72,32 @@ if (!globalThis.__formPilotContentLoaded) {
     const tag = el.tagName.toLowerCase();
     if (tag === 'input' && SKIP_TYPES.has((el.type || 'text').toLowerCase())) return false;
 
-    // Ignore anything the user cannot see - hidden honeypot fields are common
-    // on signup forms and filling them marks you as a bot.
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) return false;
     const style = getComputedStyle(el);
     if (style.visibility === 'hidden' || style.display === 'none' || style.opacity === '0') {
       return false;
     }
+
+    // display:none on an ANCESTOR. A fixed-position element legitimately has no
+    // offsetParent, so it is exempt.
+    if (el.offsetParent === null && style.position !== 'fixed') return false;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return false;
+
+    // Parked off-screen. `position:absolute; left:-9999px` is THE honeypot
+    // trick: the field is fully rendered, so size, visibility, display and
+    // opacity all look normal and every other check passes. Filling it is how
+    // a form decides you are a bot.
+    //
+    // Measured in DOCUMENT coordinates, not viewport ones - a legitimate field
+    // the user has simply scrolled past also has a negative viewport rect.
+    const docRight = rect.right + window.scrollX;
+    const docBottom = rect.bottom + window.scrollY;
+    if (docRight <= 0 || docBottom <= 0) return false;
+
+    // Collapsed by clip / clip-path - the "visually hidden" pattern.
+    if (style.clipPath === 'inset(50%)' || style.clip === 'rect(0px, 0px, 0px, 0px)') return false;
+
     return true;
   }
 
@@ -150,9 +173,12 @@ if (!globalThis.__formPilotContentLoaded) {
     return true;
   }
 
-  function fillForm({ fields = {}, customFields = [], emails = [], mappings = {}, highlight = true }) {
-    clearOutlines();
-
+  /**
+   * Work out what WOULD be filled, without touching the page.
+   * Shared by the fill itself and by detection, so a suggestion can never
+   * promise a number the fill then fails to deliver.
+   */
+  function planFill({ fields = {}, customFields = [], emails = [], mappings = {} }) {
     // fullName also answers first/last name; custom labels become matchable keys.
     const values = M.expandValues(fields, customFields, emails);
     const dictionary = M.buildDictionary(customFields, emails);
@@ -169,7 +195,7 @@ if (!globalThis.__formPilotContentLoaded) {
       }
     }
 
-    const filled = [];
+    const plan = [];
     const skipped = { alreadyFilled: 0, noMatch: 0, noValue: 0 };
 
     for (const el of all) {
@@ -185,19 +211,120 @@ if (!globalThis.__formPilotContentLoaded) {
       // Never overwrite something already in the box.
       if (el.value && el.value.trim() !== '') { skipped.alreadyFilled++; continue; }
 
-      if (fillOne(el, value)) {
-        announce(el);
-        filled.push({ key, source: taught.has(el) ? 'taught' : (M.fromAutocomplete(el) ? 'autocomplete' : 'guess') });
-        if (highlight) outline(el);
-      }
+      plan.push({
+        el, key, value,
+        source: taught.has(el) ? 'taught' : (M.fromAutocomplete(el) ? 'autocomplete' : 'guess')
+      });
     }
 
     // "Y" is the number of fields we could plausibly have filled: everything
     // visible and fillable, minus the ones we had no vault value for.
-    const total = all.length - skipped.noValue;
-    showToast(filled.length, Math.max(total, filled.length), skipped);
+    const total = Math.max(all.length - skipped.noValue, plan.length);
+    return { plan, skipped, total };
+  }
 
-    return { filled: filled.length, total: Math.max(total, filled.length), skipped, details: filled };
+  function fillForm(message) {
+    clearOutlines();
+
+    const { plan, skipped, total } = planFill(message);
+    const highlight = message.highlight !== false;
+    const filled = [];
+
+    for (const { el, key, value, source } of plan) {
+      if (!fillOne(el, value)) continue;
+      announce(el);
+      filled.push({ key, source });
+      if (highlight) outline(el);
+    }
+
+    showToast(filled.length, total, skipped);
+    return { filled: filled.length, total, skipped, details: filled };
+  }
+
+  // ==========================================================================
+  // Detection: notice a fillable form and offer, rather than waiting to be asked
+  // ==========================================================================
+
+  let suggestionDismissed = false;
+  let pendingPayload = null;      // kept so the chip's Fill button has the data
+
+  /**
+   * Count what could be filled and, if anything can, show the suggestion chip.
+   * Returns the count so the service worker can badge the toolbar icon.
+   */
+  function detect(message) {
+    pendingPayload = message;
+    const { plan } = planFill(message);
+
+    if (plan.length > 0) {
+      if (message.showChip !== false) showSuggestion(plan.length);
+    } else {
+      // Nothing yet. Forms rendered late by a framework are the common case, so
+      // re-check once the user actually touches a field rather than giving up.
+      armLateDetect();
+    }
+    return plan.length;
+  }
+
+  function armLateDetect() {
+    if (suggestionDismissed) return;
+    document.addEventListener('focusin', onLateFocus, true);
+  }
+
+  function onLateFocus(event) {
+    if (suggestionDismissed || !pendingPayload) return;
+    const el = event.target;
+    if (!(el instanceof Element) || !el.matches('input, select, textarea')) return;
+
+    const { plan } = planFill(pendingPayload);
+    if (plan.length === 0) return;
+
+    document.removeEventListener('focusin', onLateFocus, true);
+    if (pendingPayload.showChip !== false) showSuggestion(plan.length);
+  }
+
+  function showSuggestion(count) {
+    if (suggestionDismissed) return;
+
+    const shadow = uiRoot();
+    clearTimeout(showToast.timer);
+
+    const slot = shadow.getElementById('slot');
+    slot.replaceChildren();
+
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const title = document.createElement('strong');
+    title.textContent = 'FormPilot';
+
+    const note = document.createElement('div');
+    note.className = 'muted';
+    note.textContent = `Can fill ${count} field${count === 1 ? '' : 's'} here.`;
+
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const fill = document.createElement('button');
+    fill.type = 'button';
+    fill.textContent = 'Fill';
+    fill.addEventListener('click', () => {
+      if (pendingPayload) fillForm(pendingPayload);   // replaces this with its own toast
+    });
+
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.className = 'ghost';
+    dismiss.textContent = 'Not now';
+    dismiss.addEventListener('click', () => {
+      suggestionDismissed = true;
+      document.removeEventListener('focusin', onLateFocus, true);
+      removeUi();
+    });
+
+    row.append(fill, dismiss);
+    card.append(title, note, row);
+    slot.append(card);
   }
 
   // ==========================================================================

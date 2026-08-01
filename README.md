@@ -52,7 +52,12 @@ matching synonyms, so a qualified field beats the generic guess.
 education: 10th/SSC, 12th/HSC, Diploma, Degree/Bachelor's, Master's and PhD.
 
 ### Form autofill
-Open any form, click **Fill this form**. FormPilot infers what each field wants
+FormPilot notices a fillable form on its own: the toolbar icon shows how many
+fields it can fill, and a small prompt appears on the page offering to do it.
+Nothing is filled until you click. Turn it off with **Offer to fill when a form
+is detected** in Settings.
+
+You can also open any form and click **Fill this form** directly. FormPilot infers what each field wants
 and fills it, outlines what it touched, and reports "filled X of Y".
 
 It **never submits the form**, never fills password fields, skips hidden
@@ -135,10 +140,13 @@ spot. This follows UIDAI guidance to mask by default and store the minimum.
 | `activeTab` | Reading the current tab's fields, only when you click Fill |
 | `scripting` | Injecting the fill script into that tab on demand |
 | `alarms` | The idle auto-lock countdown |
+| `tabs` events | Noticing when a page finishes loading, to detect forms |
 | `<all_urls>` | Filling forms on any site you choose to use it on |
 
-`content.js` is **not** declared in the manifest — it is injected only when you
-press a button, so it never runs on pages you did not ask about.
+`content.js` is **not** declared in the manifest. It is injected programmatically,
+and only when all three of these hold: the page is http(s), **the vault is
+unlocked**, and form suggestions are switched on. Lock the vault and the
+extension stops touching web pages entirely.
 
 The extension CSP carries `'wasm-unsafe-eval'`, required by the OCR engine's
 WebAssembly. Despite the name it does not permit `eval()` or remote code;
@@ -162,7 +170,7 @@ right after a reinstall.
 manifest.json          background.js      service worker: messaging, idle auto-lock
 popup.html / .js       the Fill this form button
 options.html / .js     vault, image tool, OCR, mappings, backup, settings
-content.js             field detection and filling (injected on demand)
+content.js             field detection, suggestion chip and filling
 lib/  crypto.js        PBKDF2 + AES-GCM
       match.js         field inference and the synonyms map
       image.js         resize and file-size band search

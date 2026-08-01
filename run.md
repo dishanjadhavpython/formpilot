@@ -6,9 +6,10 @@ There is **no build step**. No `npm install`, no bundler, no compiler. The folde
 loads into Chrome exactly as it sits on disk. Node is needed only for the
 automated checks in step 5.
 
-> **Status:** phases 0–5 are complete and the automated checks pass, but the
-> extension has not yet been run in a browser. Step 4 is therefore real
-> verification, not a formality — if something is broken, that is where it shows.
+> **Status:** phases 0–5 are complete and the automated checks pass. The fill
+> engine has been exercised against a real DOM in headless Chrome, but the
+> extension as a whole has not been loaded into a browser. Step 4 is therefore
+> real verification, not a formality.
 
 ---
 
@@ -88,18 +89,20 @@ Serve the test fixture:
 python3 -m http.server 8000
 ```
 
-Open **http://localhost:8000/test/form.html**, then click the FormPilot icon and
-press **Fill this form**.
+Open **http://localhost:8000/test/form.html**. With the vault unlocked you should
+see the toolbar icon pick up a badge and an inline prompt appear offering to fill.
+Click **Fill** on it, or open the popup and press **Fill this form**.
 
 Serving over HTTP avoids needing the "Allow access to file URLs" toggle that a
 `file://` page would require.
 
 The page grades itself live:
 
-- Ten fields should fill, and get a blue outline.
+- Twelve fields should fill, and get a blue outline.
 - The panel at the top must stay **green**. It turns red if anything filled a
-  password, username, company name, OTP, captcha, or the off-screen honeypot, or
-  if it overwrote the pre-filled email.
+  password, username, company name, OTP, captcha, the off-screen honeypot, or
+  somebody else's field ("Father's Name", "Spouse Email"), or if it overwrote the
+  pre-filled email.
 - The form must **never submit**. There is a submit button that raises an alert
   if anything triggers it.
 
@@ -170,12 +173,12 @@ Expected:
 
 ```
   ok   crypto   23 passed, 0 failed    PBKDF2 + AES-GCM, IV uniqueness, tamper detection
-  ok   match    41 passed, 0 failed    field inference, specificity, refusal cases
+  ok   match    67 passed, 0 failed    field inference, specificity, refusal cases
   ok   image    19 passed, 0 failed    file-size band search, ladder descent, failure modes
   ok   ocr      25 passed, 0 failed    PAN / date / Aadhaar / name-line heuristics
   ok   backup   24 passed, 0 failed    export-import round trip, malformed-file rejection
 
-All suites passed — 132 assertions.
+All suites passed — 158 assertions.
 ```
 
 Run one suite on its own to see every assertion:
@@ -228,6 +231,8 @@ Run `npm test` after touching anything in `lib/`.
 | Popup opens but **Fill is greyed out** | The vault is locked, or the tab is a restricted page. Unlock via **Open vault**. |
 | **"Chrome does not allow extensions to run on this page"** | You are on `chrome://`, the Web Store, or a PDF viewer. Chrome blocks these for every extension. Try an ordinary site. |
 | Fill works on http sites but not a **local file** | `file://` pages need it explicitly: extension card → **Details** → **Allow access to file URLs**. Or serve over `python3 -m http.server`. |
+| Extension **never offers** to fill | Suggestions only run while the vault is **unlocked** — that is deliberate. Unlock it, then reload the page. Also check **Offer to fill when a form is detected** in Settings. |
+| Toolbar badge shows **no number** | Same three gates: http(s) page, vault unlocked, suggestions on. A badge of `7` means seven fields are fillable. |
 | **Filled 0 of N** on a real form | The site's field names did not match. Use **Teach** to map them once. |
 | Fields fill then **immediately clear** | A framework is rejecting the value. `content.js` already uses the native prototype setter for this; if it still happens, report the site. |
 | OCR: **"OCR failed"** | Open the console. If it names a `cdn.jsdelivr.net` URL, a path override was lost. If it mentions WebAssembly or CSP, `'wasm-unsafe-eval'` is missing from `content_security_policy` in the manifest. |

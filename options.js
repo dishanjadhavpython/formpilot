@@ -100,7 +100,7 @@ const EMAIL_LABELS = {
   other: 'Other'
 };
 
-const SETTINGS_DEFAULTS = { autoLockMinutes: 5, highlightFills: true, glassMode: 'tinted' };
+const SETTINGS_DEFAULTS = { autoLockMinutes: 5, highlightFills: true, glassMode: 'tinted', suggestFills: true };
 
 /**
  * Tinted / Clear, applied to <html> so the liquid-glass tokens can respond.
@@ -937,6 +937,7 @@ async function loadSettings() {
   const merged = { ...SETTINGS_DEFAULTS, ...(settings ?? {}) };
   $('autoLock').value = merged.autoLockMinutes;
   $('highlight').checked = merged.highlightFills;
+  $('suggestFills').checked = merged.suggestFills;
   $('glassMode').value = merged.glassMode;
   applyGlassMode(merged.glassMode);
 }
@@ -958,6 +959,7 @@ $('saveSettingsBtn').addEventListener('click', async () => {
       ...(settings ?? {}),
       autoLockMinutes: minutes,
       highlightFills: $('highlight').checked,
+      suggestFills: $('suggestFills').checked,
       glassMode: $('glassMode').value
     }
   });
