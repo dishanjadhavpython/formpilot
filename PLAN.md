@@ -16,7 +16,7 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 | 5 | Polish & reliability | ✅ done |
 | 6 | Document (file-upload) autofill | ✅ done |
 | 7 | Shippable: licence, privacy policy, permission diet, CI | ✅ done |
-| 8 | Earn trust in the first ninety seconds | planned |
+| 8 | Earn trust in the first ninety seconds | ✅ done |
 | 9 | Launch on the Chrome Web Store and Edge Add-ons | planned |
 | 10 | Win the market it was built for | planned |
 | 11 | Distribution | ongoing |
@@ -273,6 +273,76 @@ websites. ✅
 
 **Deferred to Phase 8:** the welcome page on install, try-it-before-passphrase
 mode, the keyboard shortcut, release checksums, and a private security contact.
+
+## Phase 8 — Earn trust in the first ninety seconds ✅
+
+The old first run had its order of operations backwards. Installing produced a
+toolbar icon and no explanation; clicking it produced a *Locked* badge; and the
+only way forward was to invent a passphrase nobody can ever recover and then
+type in a real name, a real phone number and a real Aadhaar — all before seeing
+a single thing work. That is a large ask for software you have known for ninety
+seconds, and it is where people quit.
+
+**A welcome page** (`welcome.html`), opened once from `onInstalled` on
+`reason === 'install'` — not on update, not on every worker wake. It says what
+the extension does, states the irreversible-passphrase warning once and plainly
+rather than burying it in a form, and offers two doors: create a vault, or try
+it first.
+
+**A try-it demo** (`demo.html`) — a pretend portal application form, twenty
+fields, filled with details belonging to a person who does not exist. No
+passphrase, no vault, no storage, nothing saved.
+
+The design decision that matters: **it runs the real matcher.** Every decision
+comes from `lib/match.js` unchanged — the same synonym table, the same `NEVER`
+and `THIRD_PARTY` guards, the same specific-beats-generic tie-break that
+content.js uses on real pages. A mock-up producing plausible-looking output
+would be a lie told at exactly the moment somebody is deciding whether to trust
+us with their identity documents, so the audit now fails if the real calls
+disappear, and a mutation proves that check bites.
+
+What the demo deliberately does *not* reuse is content.js's field scanner —
+that would be a second copy to keep in step, which is the problem Phase 7 just
+finished guarding against. It walks its own fixed twenty fields. Only the
+matching, the part that is actually clever, is shared.
+
+The form is built so the **refusals** are the point: nine of the twenty are left
+alone, each with a reason stated in a sentence — a password, a pre-filled field,
+"Father's Name", "Emergency Contact Number", a company name, a username, an OTP
+and a captcha. Anything can type a name into a box. Refusing to put your name in
+your father's field is the part worth showing.
+
+**A keyboard shortcut**, `Ctrl+Shift+F` / `⌘⇧F`. Filling happens dozens of times
+per application session and "click the icon, then click Fill" is enough friction
+to send people back to typing. It needs no host permission: invoking a
+registered command grants `activeTab`, exactly like clicking the toolbar icon.
+It keeps the two-pass PLAN/FILL split whole — collapsing it into one message
+would mean handing the page the entire vault to pick from — and the narrowing
+step was factored out of `releaseFill()` into `narrow()` so the chip path and
+the shortcut path cannot drift into releasing different amounts.
+
+**Release verification** (`tools/checksums.mjs`, `npm run checksums`). "No build
+step" has always been filed under simplicity; it is really an unusual security
+property. Because nothing is compiled, minified or generated, the code a
+stranger reads here is byte-for-byte the code running in their browser — a claim
+a password manager with a build pipeline cannot make. A property nobody can
+check is worth nothing, so this fingerprints every shipped file plus one
+aggregate hash, and README explains how to diff an installed copy against the
+tag.
+
+**A private disclosure route** in SECURITY.md. It previously asked finders to
+open an issue, which for a vault means a working attack is public from the
+moment it is reported until a fix clears store review.
+
+Six new mutations, all caught: the demo turned into a scripted fake, the demo
+reading the real vault, the shortcut dropping its PLAN pass, the shortcut
+ignoring the plan and sending everything, plus Phase 7's two.
+
+**Done when:** somebody who has never seen FormPilot watches a form fill itself
+before typing a single real detail — and can prove the code they installed
+matches the code they read. ✅
+
+**Deferred:** nothing from this phase. The store listing itself is Phase 9.
 
 ---
 

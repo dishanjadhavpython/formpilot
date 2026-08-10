@@ -177,10 +177,13 @@ LICENSE                MIT
 PRIVACY.md             privacy policy — the hosted URL the store listing needs
 .github/workflows/     CI: every suite on every push and pull request
 manifest.json          MV3 manifest: permissions, CSP, externally_connectable
-background.js          service worker — routing, idle auto-lock, detection
+background.js          service worker — routing, idle auto-lock, detection, shortcut
 popup.html / popup.js  toolbar button — the Fill/Teach flow
 options.html / .js     vault, image tool, OCR, mappings, backup, settings
+welcome.html / .js     first run — opened once, on install
+demo.html / .js        try-it sample form — real matcher, fake person, no vault
 content.js             injected on demand — detection, chip UI, filling
+tools/checksums.mjs    fingerprints every shipped file (release verification)
 lib/
   crypto.js            PBKDF2 + AES-256-GCM
   match.js             field inference, synonyms, what's safe to expose

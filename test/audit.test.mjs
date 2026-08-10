@@ -27,7 +27,7 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 // findings are written up in vendor/README.md - grepping a minified bundle
 // produces noise, not safety.
 const FIRST_PARTY = [
-  'background.js', 'content.js', 'popup.js', 'options.js',
+  'background.js', 'content.js', 'popup.js', 'options.js', 'welcome.js', 'demo.js',
   'lib/crypto.js', 'lib/match.js', 'lib/image.js', 'lib/ocr.js', 'lib/backup.js'
 ];
 
@@ -372,6 +372,85 @@ console.log('\n11. The duplicated expandValues has not drifted');
     ok('both copies agree on every fixture', drifted.length === 0, drifted.join(' | '));
   }
 }
+
+// ============================================================================
+console.log('\n12. The demo demonstrates, and does not simulate');
+// ============================================================================
+//
+// demo.html fills a pretend form in front of somebody deciding whether to trust
+// this extension with their identity documents. If its decisions came from a
+// hand-written script of plausible-looking outcomes, that display would be a
+// lie - and a lie told at exactly the moment trust is being extended.
+//
+// So the demo must run the real matcher. These checks are what stop it quietly
+// becoming a mock-up the day someone finds the real one inconvenient.
+
+{
+  const demo = code['demo.js'];
+  ok('the demo uses the real matcher', /globalThis\.FormPilotMatch/.test(demo),
+    'a demo that fakes its output is a lie told to earn trust');
+  for (const call of ['inferKey', 'describeField', 'expandValues', 'buildDictionary']) {
+    ok(`the demo calls the real ${call}()`, new RegExp(`M\\.${call}\\(`).test(demo));
+  }
+  ok('the demo explains refusals from the real guards',
+    /M\.NEVER\.test/.test(demo) && /M\.THIRD_PARTY\.test/.test(demo),
+    'the refusals are the persuasive half; they must be genuine');
+
+  // The whole promise of the demo is that it costs the user nothing. Reading a
+  // real vault would break that promise even if it only ever displayed it.
+  for (const [name, file] of [['demo.js', demo], ['welcome.js', code['welcome.js']]]) {
+    ok(`${name} never reads the vault record`,
+      !/storage\.local\.get\(\s*['"`]vault/.test(file));
+    ok(`${name} never reads the unlocked session copy`,
+      !/storage\.session/.test(file));
+    ok(`${name} writes no storage at all`, !/storage\.\w+\.set\(/.test(file));
+  }
+  ok('the demo hard-codes an obviously fake identity',
+    /example\.com/.test(demo) && !/@gmail|@yahoo|@outlook/.test(demo));
+  ok('the demo masks its sample Aadhaar like the vault does',
+    /aadhaarMasked:\s*['"`]X{4}/.test(demo),
+    'even the fake one shows only the last four digits');
+}
+
+// ============================================================================
+console.log('\n13. The keyboard shortcut takes no shortcuts');
+// ============================================================================
+//
+// Ctrl+Shift+F reaches a page without going through the popup, so it is a
+// second door into the same room and must obey the same rules.
+
+{
+  const worker = code['background.js'];
+  const fillFn = /async function fillActiveTab\(\)[\s\S]*?\n\}/.exec(worker)?.[0] ?? '';
+
+  ok('fillActiveTab is defined', fillFn.length > 0);
+  ok('it refuses to run on a locked vault',
+    /if \(!vaultData\)/.test(fillFn), 'a shortcut is not an unlock');
+  ok('it checks the page is http(s)',
+    /\^https\?:/.test(fillFn), 'never chrome://, never the Web Store');
+  ok('it plans before it fills',
+    fillFn.indexOf("type: 'PLAN'") !== -1
+    && fillFn.indexOf("type: 'PLAN'") < fillFn.indexOf("type: 'FILL'"),
+    'one message would mean handing the page the whole vault to pick from');
+  ok('it narrows values to the plan',
+    /narrow\(vaultData, plan\.keys, plan\.docTypes\)/.test(fillFn),
+    'the same narrowing the chip path uses, not a second copy');
+  ok('the PLAN it sends carries no values',
+    !/type: 'PLAN'[\s\S]{0,200}values:/.test(fillFn));
+  ok('the command is registered for fill-form only',
+    /command === 'fill-form'/.test(worker));
+  ok('manifest declares the fill-form command',
+    Object.keys(manifest.commands ?? {}).join(',') === 'fill-form',
+    JSON.stringify(Object.keys(manifest.commands ?? {})));
+}
+
+// ============================================================================
+console.log('\n14. The welcome page opens once, on a real install');
+// ============================================================================
+
+ok('welcome.html is opened on install',
+  /reason === 'install'[\s\S]{0,200}welcome\.html/.test(code['background.js']),
+  'not on update, not on every service-worker wake');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

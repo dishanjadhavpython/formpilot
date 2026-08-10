@@ -9,7 +9,8 @@
     "test": "node test/run.mjs",
     "audit": "node test/audit.test.mjs",
     "audit:verify": "node test/audit-mutations.mjs",
-    "security": "node test/security.test.mjs"
+    "security": "node test/security.test.mjs",
+    "checksums": "node tools/checksums.mjs"
   },
   "dependencies": {},
   "devDependencies": {}

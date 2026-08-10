@@ -273,6 +273,13 @@ const listener = { addListener: (fn) => { onMessage = fn; } };
 // chrome://extensions without the worker ever being told.
 let hostAccessGranted = true;
 
+// Captures for the keyboard-shortcut path: what it injected, what it sent, and
+// which tab it thought was in front of the user.
+let onCommand = null;
+const sent = [];
+const injected = [];
+let activeTab = { id: 7, url: 'https://forms.example.com/apply' };
+
 globalThis.chrome = {
   permissions: {
     contains: async ({ origins }) => hostAccessGranted && origins.includes('<all_urls>'),
@@ -287,9 +294,26 @@ globalThis.chrome = {
   },
   storage: { local: area(storage.local), session: area(storage.session), onChanged: listener },
   alarms: { create: async () => {}, clear: async () => {}, onAlarm: listener },
-  tabs: { onUpdated: listener, onActivated: listener, sendMessage: async () => ({}), get: async () => ({}) },
-  scripting: { executeScript: async () => [] },
-  action: { setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {} }
+  tabs: {
+    onUpdated: listener,
+    onActivated: listener,
+    get: async () => ({}),
+    create: async () => ({}),
+    query: async () => [activeTab],
+    sendMessage: async (tabId, message) => {
+      sent.push(message);
+      // Stand in for content.js: the page wants two of the offered keys.
+      if (message.type === 'PLAN') {
+        return { ok: true, count: 2, keys: ['email', 'phone'], docTypes: [], total: 9 };
+      }
+      return { ok: true, filled: 2, total: 9 };
+    }
+  },
+  scripting: { executeScript: async (options) => { injected.push(options); return []; } },
+  action: { setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {} },
+  // The keyboard shortcut. Its own capture, not the shared `listener` above:
+  // that one overwrites `onMessage`, and commands registers after runtime.
+  commands: { onCommand: { addListener: (fn) => { onCommand = fn; } } }
 };
 
 vm.runInThisContext(fs.readFileSync(new URL('../background.js', import.meta.url), 'utf8'));
@@ -339,6 +363,67 @@ ok('a revoked host permission releases nothing', revoked.ok === false,
 ok('and carries no values even in the refusal',
   revoked.values === undefined && !JSON.stringify(revoked).includes(FIELDS.email));
 hostAccessGranted = true;
+
+// ============================================================================
+console.log('\n9. The keyboard shortcut takes no shortcuts');
+// ============================================================================
+//
+// Ctrl+Shift+F reaches a page without the popup, so it is a second door into
+// the same room. It must obey every rule the first door does - notably the
+// PLAN-then-FILL split, which is what stops a page being handed the whole vault
+// to pick from.
+
+ok('the worker registered a command listener', typeof onCommand === 'function');
+
+// Locked: the shortcut must not even inject, let alone send anything.
+delete storage.session.vaultData;
+sent.length = 0; injected.length = 0;
+await onCommand('fill-form');
+ok('a locked vault ignores the shortcut', sent.length === 0 && injected.length === 0,
+  `sent ${sent.length}, injected ${injected.length}`);
+
+storage.session.vaultData = { fields: FIELDS, emails: EMAILS, customFields: CUSTOM, documents: DOCUMENTS };
+
+// A chrome:// page is not ours to script, whatever the vault's state.
+activeTab = { id: 7, url: 'chrome://settings' };
+sent.length = 0; injected.length = 0;
+await onCommand('fill-form');
+ok('a restricted page is left alone', sent.length === 0 && injected.length === 0,
+  `sent ${sent.length}, injected ${injected.length}`);
+
+// An unrelated command must not fill anything either.
+activeTab = { id: 7, url: 'https://forms.example.com/apply' };
+sent.length = 0; injected.length = 0;
+await onCommand('some-other-command');
+ok('an unknown command does nothing', sent.length === 0 && injected.length === 0);
+
+// The real path.
+sent.length = 0; injected.length = 0;
+await onCommand('fill-form');
+
+const planMsg = sent.find((m) => m.type === 'PLAN');
+const fillMsg = sent.find((m) => m.type === 'FILL');
+
+ok('it injects the matcher and the content script',
+  JSON.stringify(injected[0]?.files) === '["lib/match.js","content.js"]',
+  JSON.stringify(injected[0]?.files));
+ok('it plans before it fills',
+  sent.indexOf(planMsg) === 0 && sent.indexOf(fillMsg) === 1,
+  sent.map((m) => m.type).join(' -> '));
+ok('PLAN carries key names only',
+  Array.isArray(planMsg?.keys) && planMsg.values === undefined && planMsg.fields === undefined,
+  JSON.stringify(Object.keys(planMsg ?? {})));
+ok('PLAN leaks no value',
+  !JSON.stringify(planMsg).includes(FIELDS.phone) && !JSON.stringify(planMsg).includes(FIELDS.email));
+ok('FILL carries exactly the planned keys',
+  JSON.stringify(Object.keys(fillMsg?.values ?? {}).sort()) === '["email","phone"]',
+  Object.keys(fillMsg?.values ?? {}).join(','));
+ok('FILL carries no document the plan did not ask for',
+  JSON.stringify(fillMsg?.docs ?? {}) === '{}',
+  JSON.stringify(fillMsg?.docs));
+ok('FILL leaks no unplanned value',
+  !JSON.stringify(fillMsg.values).includes(FIELDS.pan),
+  'the vault holds a PAN; the plan did not ask for it');
 
 const flood = await ask({ type: 'REQUEST_FILL', keys: Array(500).fill('email') }, PAGE);
 ok('a flood of keys is capped', Object.keys(flood.values).length <= 60);

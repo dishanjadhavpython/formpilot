@@ -31,11 +31,43 @@ no build step. Everything third-party is committed under [`vendor/`](vendor/).
 
 ## First run
 
+Installing opens a welcome page. From there you can **try it on a sample form**
+before committing anything — a pretend application form filled with made-up
+details, which touches no vault and asks for nothing. It runs the real matcher,
+so what you see it fill (and refuse) is what it would really do.
+
+When you are ready:
+
 1. Click the FormPilot icon → **Open vault**
 2. Choose a passphrase. It encrypts everything, and it is never stored anywhere.
    **If you forget it, the data is gone** — that is what encryption means, and
    there is no reset.
 3. Fill in your details, attach document images, press **Save vault**
+
+Once a vault is unlocked, **Ctrl+Shift+F** (**⌘⇧F** on a Mac) fills the page you
+are on without opening the popup. Rebind it at `chrome://extensions/shortcuts`.
+
+## Verify what you installed
+
+FormPilot has no build step: no bundler, no minifier, nothing generated. The
+folder Chrome loads is the folder in this repository, byte for byte — so unlike
+almost any other extension, you can check that the code you read is the code
+that runs.
+
+```bash
+npm run checksums          # every shipped file, plus one aggregate hash
+```
+
+Compare that against the same command run inside the copy your browser actually
+installed (Chrome keeps it under your profile's `Extensions/<id>/<version>/`),
+or diff the two trees directly:
+
+```bash
+diff -r . ~/path/to/profile/Extensions/<extension-id>/<version>/ \
+  --exclude=.git --exclude=test --exclude=tools --exclude=node_modules
+```
+
+Expect no output. Any difference at all is one worth asking about.
 
 ---
 

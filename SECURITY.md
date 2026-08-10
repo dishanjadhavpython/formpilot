@@ -256,6 +256,33 @@ Being honest about the edges is part of the security model.
 ## Reporting something
 
 This is a personal project with no server, no user accounts and no telemetry, so
-there is nothing to disclose to and no fleet to patch. If you find a flaw, open an
-issue — or better, add the failing case to `test/security.test.mjs` and a
-mutation to `test/audit-mutations.mjs` so it can never come back.
+there is no fleet to patch and no incident response to run. What there is, once
+this is on a store, is a population of people whose vaults are only as safe as
+the last released version — which makes *how* a flaw arrives worth stating.
+
+**If the flaw is exploitable, report it privately first.** Public disclosure of a
+working attack on a vault means every installed copy is vulnerable from the
+moment the issue is filed until a fixed version has been reviewed and rolled out,
+and store review is not instant. Either route works:
+
+- GitHub's **private vulnerability reporting** (Security → Report a vulnerability
+  on the repository), or
+- **dishanjadhav0827@gmail.com**
+
+Expect an acknowledgement within a few days. A fix ships as fast as store review
+allows, and you will be credited unless you would rather not be.
+
+**Everything else — open an issue.** Hardening ideas, a rule in
+[CLAUDE.md](CLAUDE.md) this code does not actually keep, a threat in the table
+above that deserves a better answer. None of that needs to be private, and
+discussing it in the open is how it gets better.
+
+**Best of all, send a failing test.** Add the case to `test/security.test.mjs`
+and a mutation to `test/audit-mutations.mjs`, and the flaw can never quietly come
+back.
+
+## Verifying a release
+
+FormPilot has no build step, so a shipped copy should be byte-identical to its
+tag. `npm run checksums` fingerprints every file that ships; the aggregate hash
+is published with each release. See README.md, "Verify what you installed".

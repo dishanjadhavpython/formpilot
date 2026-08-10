@@ -138,11 +138,29 @@ and `background.js` reads the stored value.
 ```
 manifest.json     background.js (service worker)
 popup.html/js     options.html/js   (vault + image tool + OCR)
+welcome.html/js   (first run; opened once on install)
+demo.html/js      (try-it sample form; no vault, no storage)
 content.js        (field detection + fill; injected programmatically, never declared)
 lib/              crypto.js, match.js, image.js, ocr.js, backup.js
 vendor/           third-party libs, local copies only
+tools/            dev scripts, not shipped
 icons/
 ```
+
+## The demo must never become a mock-up
+
+`demo.html` fills a pretend form in front of somebody deciding whether to trust
+this extension with their identity documents. Its decisions therefore come from
+`lib/match.js` — the real matcher, the real `NEVER` and `THIRD_PARTY` guards —
+never from a script of plausible-looking outcomes. Faking it would be a lie told
+at exactly the moment trust is being extended, and `npm run audit` fails if the
+real calls disappear. It reads no vault, writes no storage, and its sample
+identity is fake all the way down (`example.com`, an Aadhaar masked to four
+digits like a real one).
+
+What it deliberately does *not* reuse is `content.js`'s field scanner — a second
+copy of that would drift. It walks its own fixed twenty fields; only the
+matching is shared.
 
 ## Working agreement
 

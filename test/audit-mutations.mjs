@@ -77,7 +77,32 @@ const MUTATIONS = [
   // version of that going wrong: someone simplifies one copy and not the other,
   // and detection starts disagreeing with what a fill writes.
   ['drifts the worker copy of expandValues', 'background.js',
-    (s) => s.replace("values.middleName ??= parts.slice(1, -1).join(' ')", 'values.middleName ??= parts[1]')]
+    (s) => s.replace("values.middleName ??= parts.slice(1, -1).join(' ')", 'values.middleName ??= parts[1]')],
+
+  // "The real matcher is awkward to call from a page, just hard-code what the
+  // demo form should produce" - turning the one thing a hesitant user judges us
+  // on into a scripted performance.
+  ['turns the demo into a scripted fake', 'demo.js',
+    (s) => s.replace('M.inferKey(haystack, dictionary)?.key', 'SCRIPTED[el.id]')],
+
+  // "The demo would be more convincing with the user's actual details in it."
+  ['lets the demo read the unlocked vault', 'demo.js',
+    (s) => s.replace(
+      "const { settings } = await chrome.storage.local.get('settings');",
+      "const { settings } = await chrome.storage.session.get('vaultData');")],
+
+  // "Two round trips per keystroke of a shortcut is wasteful" - and collapsing
+  // them means handing the page every value it might conceivably want.
+  ['drops the PLAN pass from the keyboard shortcut', 'background.js',
+    (s) => s.replace(
+      "const plan = await chrome.tabs.sendMessage(tab.id, { type: 'PLAN', ...payload });",
+      'const plan = { ok: true, count: 1, keys: meta.keys, docTypes: meta.docKeys };')],
+
+  // The same regression by the other route: plan properly, then ignore it.
+  ['sends the whole vault instead of the planned keys', 'background.js',
+    (s) => s.replace(
+      'const { values, docs } = narrow(vaultData, plan.keys, plan.docTypes);',
+      'const values = expandValues(vaultData); const docs = {};')]
 ];
 
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'formpilot-audit-'));

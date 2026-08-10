@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Welcome to FormPilot</title>
+  <link rel="stylesheet" href="styles/one-ui.css">
+  <link rel="stylesheet" href="styles/liquid-glass.css">
+  <style>
+    /* Shell only. Every value comes from the tokens in one-ui.css. */
+    .steps { counter-reset: step; }
+    .steps .list__row { align-items: flex-start; gap: var(--s4); }
+    .steps .list__row::marker { content: none; }
+    .step-n {
+      flex: 0 0 auto;
+      width: 26px;
+      height: 26px;
+      border-radius: var(--r-pill);
+      background: var(--accent-soft);
+      color: var(--accent);
+      font: var(--t-caption);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step-text { min-width: 0; }
+    .step-text b { display: block; font: var(--t-body); font-weight: 650; }
+    .step-text span { font: var(--t-caption); color: var(--text-2); }
+  </style>
+</head>
+<body>
+  <div class="wrap stack">
+
+    <div class="app-title">
+      <div class="app-title__row">
+        <img src="icons/icon48.png" alt="">
+        <h1>FormPilot</h1>
+      </div>
+      <p class="tagline">Installed. Here is what it does and what it will never do.</p>
+    </div>
+
+    <section>
+      <h2>Three things, all on your device</h2>
+      <div class="list steps">
+        <div class="list__row">
+          <span class="step-n" aria-hidden="true">1</span>
+          <span class="step-text">
+            <b>Fills forms it understands</b>
+            <span>It works out what each box wants from its label, not from a
+            list of websites. It never submits the form, never fills a password,
+            and never overwrites something you already typed.</span>
+          </span>
+        </div>
+        <div class="list__row">
+          <span class="step-n" aria-hidden="true">2</span>
+          <span class="step-text">
+            <b>Resizes a photo into a portal's exact range</b>
+            <span>&ldquo;JPEG, max 600px, between 20 and 50&nbsp;KB&rdquo; &mdash;
+            including the minimum, which is the half most compressors ignore and
+            the reason uploads get rejected.</span>
+          </span>
+        </div>
+        <div class="list__row">
+          <span class="step-n" aria-hidden="true">3</span>
+          <span class="step-text">
+            <b>Reads your ID cards to save typing</b>
+            <span>PAN, Aadhaar and marksheets, recognised on this device. Every
+            suggestion is editable and nothing is saved until you say so.</span>
+          </span>
+        </div>
+      </div>
+      <p class="usage">No account. No server. No network requests of any kind &mdash;
+      open DevTools and watch, everything you see should be a
+      <code>chrome-extension://</code> URL.</p>
+    </section>
+
+    <section>
+      <h2>Before you choose a passphrase</h2>
+      <p class="note danger">Your passphrase cannot be recovered. Not by you, not
+      by anyone &mdash; there is no reset link, no security question and no
+      support address that can help, because nothing about your vault leaves
+      this device. Forget it and the data is gone. Pick something you will still
+      know in a year, and export a backup once you have set things up.</p>
+      <p class="hint">Not ready to commit anything yet? Try it on a sample form
+      first. It uses made-up details and never touches a vault.</p>
+    </section>
+
+    <div class="bottom-bar">
+      <button id="demoBtn" class="btn btn--tonal" type="button">Try it on a sample form</button>
+      <button id="setupBtn" class="btn btn--primary" type="button">Create my vault</button>
+    </div>
+
+  </div>
+
+  <script src="welcome.js"></script>
+</body>
+</html>

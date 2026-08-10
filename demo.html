@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FormPilot — try it on a sample form</title>
+  <link rel="stylesheet" href="styles/one-ui.css">
+  <link rel="stylesheet" href="styles/liquid-glass.css">
+  <style>
+    /* The mock portal is deliberately plainer than the rest of the extension -
+       it stands in for somebody else's website. Still tokens only, per
+       DESIGN.md; the difference is arrangement, not new values. */
+    .portal {
+      background: var(--surface-2);
+      border: 1px solid var(--divider);
+      border-radius: var(--r-sm);
+      padding: var(--s5);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--s4);
+    }
+    .portal .full { grid-column: 1 / -1; }
+    .portal label {
+      display: block;
+      font: var(--t-caption);
+      color: var(--text-2);
+      margin-bottom: var(--s1);
+    }
+    .portal input, .portal select, .portal textarea {
+      width: 100%;
+      font: var(--t-body);
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--divider);
+      border-radius: var(--r-sm);
+      padding: var(--s2) var(--s3);
+    }
+    .portal textarea { min-height: 62px; resize: vertical; }
+    /* Matches what content.js draws on a real page: a 2px accent outline. */
+    .portal .is-filled {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+      border-color: var(--accent);
+    }
+    .portal .row { min-width: 0; }
+    .portal-head {
+      grid-column: 1 / -1;
+      font: var(--t-caption);
+      font-weight: 700;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .portal-foot {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: var(--s3);
+      flex-wrap: wrap;
+    }
+    .portal-foot button[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+    /* Result list */
+    .outcome { display: flex; flex-direction: column; gap: var(--s2); }
+    .outcome__row {
+      display: flex;
+      align-items: baseline;
+      gap: var(--s3);
+      font: var(--t-caption);
+    }
+    .outcome__row .what { flex: 0 0 auto; font-weight: 650; color: var(--text); }
+    .outcome__row .why { color: var(--text-2); min-width: 0; }
+    .tick { flex: 0 0 auto; width: 1.2em; text-align: center; }
+    .tick--yes { color: var(--success); }
+    .tick--no  { color: var(--text-3); }
+    @media (max-width: 560px) { .portal { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap stack">
+
+    <div class="app-title">
+      <div class="app-title__row">
+        <img src="icons/icon48.png" alt="">
+        <h1>Try it</h1>
+      </div>
+      <p class="tagline">A pretend application form, filled with made-up details.</p>
+    </div>
+
+    <p class="note">Nothing here touches a vault. The details below belong to
+    &ldquo;Aarav Sharma&rdquo;, who does not exist. Your own data is not
+    involved, and nothing on this page is saved anywhere.</p>
+
+    <section>
+      <h2>Sample details</h2>
+      <p class="hint">Standing in for what your vault would hold.</p>
+      <div class="list" id="sampleList"></div>
+    </section>
+
+    <section>
+      <h2>The form</h2>
+      <p class="hint">Twenty fields. FormPilot should fill some of them, refuse
+      several on purpose, and leave one alone because it already has a value.</p>
+
+      <div class="portal" id="portal">
+        <div class="portal-head">Section A &mdash; Applicant details</div>
+
+        <div class="row"><label for="fname">First Name</label>
+          <input id="fname" name="first_name" type="text" autocomplete="given-name"></div>
+        <div class="row"><label for="lname">Last Name</label>
+          <input id="lname" name="last_name" type="text" autocomplete="family-name"></div>
+
+        <div class="row"><label for="fathername">Father&rsquo;s Name</label>
+          <input id="fathername" name="father_name" type="text"></div>
+        <div class="row"><label for="dob">Date of Birth</label>
+          <input id="dob" name="dob" type="date" autocomplete="bday"></div>
+
+        <div class="row"><label for="email">Email Address</label>
+          <input id="email" name="email" type="email" autocomplete="email"></div>
+        <div class="row"><label for="altemail">Alternate Email</label>
+          <input id="altemail" name="alternate_email" type="email" value="already.typed@example.com"></div>
+
+        <div class="row"><label for="mobile">Mobile Number</label>
+          <input id="mobile" name="mobile_number" type="tel"></div>
+        <div class="row"><label for="emergency">Emergency Contact Number</label>
+          <input id="emergency" name="emergency_contact" type="tel"></div>
+
+        <div class="row full"><label for="address">Permanent Address</label>
+          <textarea id="address" name="permanent_address"></textarea></div>
+
+        <div class="row"><label for="city">City</label>
+          <input id="city" name="city" type="text"></div>
+        <div class="row"><label for="state">State</label>
+          <select id="state" name="state">
+            <option value="">Select&hellip;</option>
+            <option>Gujarat</option>
+            <option>Karnataka</option>
+            <option>Maharashtra</option>
+            <option>Tamil Nadu</option>
+          </select></div>
+
+        <div class="row"><label for="pin">PIN Code</label>
+          <input id="pin" name="pincode" type="text"></div>
+        <div class="row"><label for="pan">PAN Number</label>
+          <input id="pan" name="pan_number" type="text"></div>
+
+        <div class="row"><label for="aadhaar">Aadhaar Number</label>
+          <input id="aadhaar" name="aadhaar_number" type="text"></div>
+        <div class="row"><label for="company">Company Name</label>
+          <input id="company" name="company_name" type="text"></div>
+
+        <div class="portal-head">Section B &mdash; Create your login</div>
+
+        <div class="row"><label for="username">Username</label>
+          <input id="username" name="username" type="text"></div>
+        <div class="row"><label for="pw">Password</label>
+          <input id="pw" name="password" type="password"></div>
+
+        <div class="row"><label for="pw2">Confirm Password</label>
+          <input id="pw2" name="confirm_password" type="password"></div>
+        <div class="row"><label for="otp">OTP sent to your mobile</label>
+          <input id="otp" name="otp" type="text" inputmode="numeric"></div>
+
+        <div class="row"><label for="captcha">Enter the captcha</label>
+          <input id="captcha" name="captcha" type="text"></div>
+
+        <div class="portal-foot">
+          <button type="button" disabled>Submit application</button>
+          <span class="sub">FormPilot will never press this. Submitting is always yours.</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="resultView" class="hidden">
+      <h2>What happened <span id="resultBadge" class="badge"></span></h2>
+      <p class="hint" id="resultLead"></p>
+      <div class="outcome" id="outcome"></div>
+      <p class="usage">Every decision above came from the same matcher the real
+      extension uses on real pages &mdash; <code>lib/match.js</code>, unchanged.
+      This page is a demonstration, not a simulation.</p>
+    </section>
+
+    <div class="bottom-bar">
+      <button id="resetBtn" class="btn btn--neutral btn--auto" type="button">Reset</button>
+      <button id="fillBtn" class="btn btn--primary" type="button">Fill this form</button>
+      <button id="setupBtn" class="btn btn--tonal btn--auto" type="button">Create my vault</button>
+    </div>
+
+  </div>
+
+  <script src="lib/match.js"></script>
+  <script src="demo.js"></script>
+</body>
+</html>

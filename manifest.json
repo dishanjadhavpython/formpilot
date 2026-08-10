@@ -21,6 +21,13 @@
     "extension_pages": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
   },
 
+  "commands": {
+    "fill-form": {
+      "suggested_key": { "default": "Ctrl+Shift+F", "mac": "Command+Shift+F" },
+      "description": "Fill this form from the vault"
+    }
+  },
+
   "action": {
     "default_title": "FormPilot",
     "default_popup": "popup.html",

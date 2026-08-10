@@ -50,6 +50,14 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     });
     log('default settings written');
   }
+
+  // A new install used to end here: a toolbar icon appeared and nothing
+  // explained it, so the first thing the user met was a locked badge and a
+  // request for a passphrase nobody can ever recover for them. Open the welcome
+  // page instead - once, on a genuine install, never on an update or a reload.
+  if (details.reason === 'install') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') }).catch(() => {});
+  }
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -306,6 +314,25 @@ async function releaseFill(keys, docTypes, sender) {
   const { [SESSION_KEY]: vaultData } = await chrome.storage.session.get(SESSION_KEY);
   if (!vaultData) return { ok: false, error: 'The vault is locked.' };
 
+  const { values, docs } = narrow(vaultData, keys, docTypes);
+
+  armAutoLock();   // filling is activity
+  return { ok: true, values, docs, highlight: settings?.highlightFills !== false };
+}
+
+/**
+ * Cut the vault down to exactly what a plan asked for: the values behind these
+ * key names, one document per requested type, and nothing else.
+ *
+ * Factored out because two callers now need it - the chip's REQUEST_FILL and
+ * the keyboard shortcut - and a second hand-written copy of "which values leave
+ * the worker" is precisely the kind of duplication that drifts quietly and ends
+ * up releasing more than the plan asked for.
+ *
+ * Both bounds are caps on a caller-supplied list, so a malformed or hostile
+ * plan cannot ask for an unbounded amount of work or data.
+ */
+function narrow(vaultData, keys, docTypes) {
   const wanted = (Array.isArray(keys) ? keys : [])
     .filter((key) => typeof key === 'string' && key.length > 0 && key.length <= 200)
     .slice(0, MAX_RELEASED_KEYS);
@@ -327,9 +354,81 @@ async function releaseFill(keys, docTypes, sender) {
     }
   }
 
-  armAutoLock();   // filling is activity
-  return { ok: true, values, docs, highlight: settings?.highlightFills !== false };
+  return { values, docs };
 }
+
+// --- The keyboard shortcut --------------------------------------------------
+//
+// Ctrl+Shift+F / Cmd+Shift+F. Filling is a thing people do dozens of times per
+// application session, and "click the toolbar icon, then click Fill" is enough
+// friction to send them back to typing by hand.
+//
+// This needs no host permission. Invoking a registered command is one of the
+// gestures that grants activeTab, exactly like clicking the toolbar icon does,
+// so the shortcut reaches the tab the user is looking at and no other. That is
+// also why it does NOT check hasBroadHostAccess(): unlike proactive detection,
+// nothing here happens to a page the user did not just act on.
+//
+// The two-pass PLAN/FILL split is kept whole. Pass one carries key names and
+// document types; pass two carries values, for only the keys pass one came back
+// with. Doing it in one message would be simpler and would mean handing the
+// page the whole vault to pick from.
+
+async function fillActiveTab() {
+  const { [SESSION_KEY]: vaultData } = await chrome.storage.session.get(SESSION_KEY);
+  if (!vaultData) { log('shortcut ignored: vault locked'); return; }
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+
+  // tab.url is populated because the command grant covers this tab. If some
+  // future Chrome withholds it, an empty host just means no taught mappings
+  // are applied - it must never mean "carry on without checking the scheme".
+  const url = tab.url ?? '';
+  if (!/^https?:/i.test(url)) { log('shortcut ignored: not a web page'); return; }
+
+  let host = '';
+  try { host = new URL(url).hostname; } catch { /* opaque URL */ }
+
+  const { settings } = await chrome.storage.local.get('settings');
+  const { siteMappings = {} } = await chrome.storage.local.get('siteMappings');
+
+  const meta = publicMeta(vaultData);
+  const payload = {
+    keys: meta.keys,
+    docKeys: meta.docKeys,
+    docMimes: meta.docMimes,
+    customFields: meta.customFields,
+    emails: meta.emails,
+    mappings: host ? (siteMappings[host] ?? {}) : {},
+    highlight: settings?.highlightFills !== false
+  };
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ['lib/match.js', 'content.js']
+    });
+
+    const plan = await chrome.tabs.sendMessage(tab.id, { type: 'PLAN', ...payload });
+    if (!plan?.ok || (plan.count === 0 && (plan.docCount ?? 0) === 0)) return;
+
+    const { values, docs } = narrow(vaultData, plan.keys, plan.docTypes);
+    await chrome.tabs.sendMessage(tab.id, { type: 'FILL', ...payload, values, docs });
+
+    armAutoLock();   // filling is activity
+  } catch (err) {
+    // A restricted page, or one that navigated mid-fill. content.js shows its
+    // own toast on success, so there is nothing to report here.
+    log('shortcut fill failed:', err.message);
+  }
+}
+
+chrome.commands.onCommand.addListener((command) => {
+  // The promise is returned so a test can await the whole fill. Chrome ignores
+  // the return value of a command listener.
+  if (command === 'fill-form') return fillActiveTab();
+});
 
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
   if (info.status === 'complete') detectForms(tabId, tab.url);
