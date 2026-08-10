@@ -702,7 +702,7 @@ if (!globalThis.__formPilotContentLoaded) {
 
   function outline(el) {
     outlined.push({ el, outline: el.style.outline, offset: el.style.outlineOffset });
-    el.style.setProperty('outline', '2px solid #1B6FF3', 'important');   /* --accent */
+    el.style.setProperty('outline', '2px solid #1968E4', 'important');   /* --accent, hard-coded: see the note below */
     el.style.setProperty('outline-offset', '1px', 'important');
   }
 
@@ -741,7 +741,7 @@ if (!globalThis.__formPilotContentLoaded) {
     shadow.innerHTML = `
       <style>
         :host {
-          --accent:#1B6FF3; --surface:#17181B;
+          --accent:#1968E4; --surface:#17181B;
           --r-lg:22px; --r-md:16px; --r-pill:999px;
           --s2:8px; --s3:12px; --s4:16px;
           --shadow:0 8px 28px rgba(0,0,0,0.45);

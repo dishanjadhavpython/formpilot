@@ -32,7 +32,8 @@ const SUITES = [
   ['audit',    'audit.test.mjs',    'static scan: no network, no eval, no auto-submit'],
   ['mutation', 'audit-mutations.mjs', 'proves the audit above actually catches regressions'],
   ['package',  'package.test.mjs',  'the store ZIP: complete, minimal, reproducible'],
-  ['wiring',   'wiring.test.mjs',   'every id, label, import and CSS token resolves']
+  ['wiring',   'wiring.test.mjs',   'every id, label, import and CSS token resolves'],
+  ['contrast', 'contrast.test.mjs', 'WCAG AA on every text token, both themes']
 ];
 
 function run(file) {

@@ -216,6 +216,9 @@ button, .btn, .tile {
 /* Scroll-edge fade. Only ever put this on an element that genuinely scrolls —
    on a normal flex column it does not fade, it just clips the first and last
    20px of content. The one real scroll container here is the OCR text panel. */
+/* The #000 below is NOT a colour and must not be tokenised: in a mask only the
+   alpha channel is read, so it means "fully opaque here". Any opaque value
+   would do. */
 .lg-scroll-fade {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 20px,
                                       #000 calc(100% - 20px), transparent 100%);

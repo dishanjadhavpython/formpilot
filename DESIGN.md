@@ -87,10 +87,65 @@ alive. The unlocked badge plays a single `pop`. All of it is disabled by the glo
 ## 5. Motion, states, accessibility
 
 - Standard transition `var(--dur) var(--ease)`; press feedback `scale(0.97)`; sheets spring in ~280ms.
-- `:focus-visible` → `box-shadow: 0 0 0 4px var(--accent-soft); border-color: var(--accent);`
-- Contrast AA; never put secondary text lighter than `--text-2` on light backgrounds.
 - `@media (prefers-reduced-motion: reduce)` disables animation and transition everywhere.
 - Icons: rounded line set, 22–24px, ~1.8 stroke, rounded caps.
+
+### Focus
+
+```css
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px;
+                 box-shadow: 0 0 0 4px var(--accent-soft); }
+```
+
+**Never `outline: none` with only the soft glow.** That is what this was, and
+`--accent-soft` is a 12%-alpha blue measuring about 1.2:1 against the page where
+WCAG asks 3:1 — so keyboard focus was effectively invisible on every button in
+the extension. `border-color` in the same rule did nothing, because
+`button, .btn` sets `border: none`.
+
+The `outline-offset` is load-bearing: an accent ring drawn flush against an
+accent-filled button cannot be seen. `outline` rather than `box-shadow` because
+it still renders outside an `overflow: hidden` ancestor. A `forced-colors: active`
+block re-states the ring in the system `Highlight` colour, since high-contrast
+mode discards every custom property above.
+
+### Contrast
+
+Every token that carries text clears **4.5:1** against both `--bg` and
+`--surface`, in **both** themes. This is measured, not judged:
+`test/contrast.test.mjs` computes it on every run and fails the build otherwise,
+so a "slightly nicer" lighter grey cannot drift back in.
+
+Two consequences worth knowing before you touch the palette:
+
+- **`--on-tonal` exists because `--accent` is not enough.** Anything sitting on
+  an `--accent-soft` tint — tonal buttons, inline `code`, the unlocked badge —
+  needs the stronger blue: the tint darkens the ground just enough that plain
+  `--accent` lands at 4.29:1.
+- **Restate colours in the dark block even when they "look fine".** `--success`
+  was inherited from light for a long time; a green picked to clear 4.5:1 on
+  white measures about 2.5:1 on near-black, so every "Saved" confirmation was
+  unreadable in dark mode. The test now catches exactly this.
+
+### The three places a token cannot reach
+
+`content.js` renders into somebody else's page, where our custom properties do
+not exist, so it hard-codes the accent twice — the outline drawn on a filled
+field, and the `:host` block of its closed shadow root. `background.js` hard-codes
+it once more, because `chrome.action.setBadgeBackgroundColor` takes a colour
+string rather than CSS.
+
+These are legitimate exceptions to "nothing else hard-codes a colour", and the
+contrast test asserts all three still equal `--accent` — otherwise a palette
+change leaves the in-page chip and the toolbar badge on the old blue while every
+other surface moves.
+
+### Reachability
+
+Anything positioned by dragging needs a keyboard path to the same result. The
+crop stage is focusable and takes arrow keys to move, `+`/`-` to zoom and `Home`
+to reset — a crop you can only place with a pointer is a feature that does not
+exist for part of the audience.
 
 ---
 

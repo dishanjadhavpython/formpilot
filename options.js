@@ -1428,6 +1428,39 @@ async function showCropStage(file) {
   };
   stage.addEventListener('pointerup', end);
   stage.addEventListener('pointercancel', end);
+
+  // Drag is not an interaction everyone can perform. A crop positioned only by
+  // pointer is a feature that simply does not exist for anyone using a keyboard,
+  // and this one sits between the user and a portal upload they have to make.
+  //
+  // The stage is focusable, so arrow keys move the crop and +/- zoom it. Shift
+  // makes a coarse step, for crossing a large image without forty presses.
+  const NUDGE = 0.02;
+
+  stage.addEventListener('keydown', (event) => {
+    if (!currentAspect()) return;
+
+    const step = event.shiftKey ? NUDGE * 5 : NUDGE;
+    let handled = true;
+
+    switch (event.key) {
+      case 'ArrowLeft':  cropFocus = { ...cropFocus, x: cropFocus.x - step }; break;
+      case 'ArrowRight': cropFocus = { ...cropFocus, x: cropFocus.x + step }; break;
+      case 'ArrowUp':    cropFocus = { ...cropFocus, y: cropFocus.y - step }; break;
+      case 'ArrowDown':  cropFocus = { ...cropFocus, y: cropFocus.y + step }; break;
+      case '+': case '=': cropZoom = Math.min(4, cropZoom + 0.1); break;
+      case '-': case '_': cropZoom = Math.max(1, cropZoom - 0.1); break;
+      case 'Home': cropFocus = { x: 0.5, y: 0.5 }; cropZoom = 1; break;
+      default: handled = false;
+    }
+
+    if (!handled) return;
+    // Arrow keys scroll the page by default, which would drag the stage out
+    // from under the user as they aim.
+    event.preventDefault();
+    $('cropZoom').value = String(Math.round(cropZoom * 100));
+    paintCrop();
+  });
 }
 
 $('cropZoom').addEventListener('input', () => {

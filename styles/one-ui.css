@@ -17,12 +17,22 @@
   /* Light */
   --bg:#F4F5F7;            --surface:#FFFFFF;        --surface-2:#FBFBFD;
   --glass-bg:rgba(255,255,255,0.72); --glass-border:rgba(255,255,255,0.55);
-  --text:#17181C;          --text-2:#63676E;         --text-3:#9AA0A8;
-  --accent:#1B6FF3;        --accent-press:#135FDB;   --accent-soft:rgba(27,111,243,0.12);
+  /* Every colour that carries TEXT is at or above 4.5:1 against both --bg and
+     --surface, measured rather than eyeballed. test/contrast.test.mjs asserts
+     it on every run, so a "nicer" lighter grey cannot creep back in.
+     --text-3 is the tertiary step: still visibly quieter than --text-2, but
+     legible rather than decorative. */
+  --text:#17181C;          --text-2:#505359;         --text-3:#6A6E74;
+  --accent:#1968E4;        --accent-press:#1157C4;   --accent-soft:rgba(25,104,228,0.12);
   --on-accent:#FFFFFF;     /* ink on a filled accent surface — see below */
-  --success:#1DAA61;       --danger:#E5484D;         --divider:rgba(0,0,0,0.06);
-  --warn:#B26C00;          --warn-soft:rgba(178,108,0,0.12);
-  --danger-soft:rgba(229,72,77,0.12);
+  /* Ink for anything sitting ON --accent-soft: tonal buttons, inline code, the
+     unlocked badge. --accent itself measures 4.29:1 there — the tint darkens
+     the ground just enough to fail — so these get the stronger blue. Thinning
+     the tint instead would have washed the component out to pass by 0.04. */
+  --on-tonal:#1157C4;
+  --success:#157E48;       --danger:#C53E42;         --divider:rgba(0,0,0,0.06);
+  --warn:#9E6000;          --warn-soft:rgba(158,96,0,0.12);
+  --danger-soft:rgba(197,62,66,0.12);
   --shadow:0 8px 24px rgba(20,23,28,0.10);
   --shadow-soft:0 2px 10px rgba(20,23,28,0.06);
 
@@ -55,7 +65,7 @@
 
   /* Icon-chip hues. Used ONLY behind feature icons — body text and controls
      stay on the single accent, so the interface still reads as one system. */
-  --hue-blue:#1B6FF3;   --hue-blue-soft:rgba(27,111,243,0.12);
+  --hue-blue:#1968E4;   --hue-blue-soft:rgba(25,104,228,0.12);
   --hue-violet:#7C5CE6; --hue-violet-soft:rgba(124,92,230,0.12);
   --hue-teal:#0FA3A3;   --hue-teal-soft:rgba(15,163,163,0.12);
   --hue-amber:#D68A00;  --hue-amber-soft:rgba(214,138,0,0.14);
@@ -67,11 +77,18 @@
   :root {
     --bg:#0A0B0D;          --surface:#17181B;        --surface-2:#1E2024;
     --glass-bg:rgba(28,30,34,0.62); --glass-border:rgba(255,255,255,0.08);
-    --text:#F2F3F5;        --text-2:#A9AEB6;         --text-3:#6E747C;
+    --text:#F2F3F5;        --text-2:#A9AEB6;         --text-3:#7E838A;
     --accent:#4C93FF;      --accent-press:#3B82F0;   --accent-soft:rgba(76,147,255,0.16);
     /* The dark accent is a LIGHT blue, so white on it is only 3.0:1 — under
-       WCAG AA for 14px text. Dark ink on it measures ~5.9:1. */
+       WCAG AA for 14px text. Dark ink on it measures ~6.5:1. */
     --on-accent:#0A0B0D;
+    --on-tonal:#8FBAFF;
+    /* --success MUST be restated here. The light value is a deep green chosen
+       to clear 4.5:1 on white; inherited onto a near-black background it drops
+       to about 2.5:1 and the "Saved" confirmations become unreadable. Every
+       other text colour below is overridden for the same reason — this one was
+       simply missing until the contrast test went in. */
+    --success:#3ECC85;
     --divider:rgba(255,255,255,0.08);
     --warn:#E0A33A;        --warn-soft:rgba(224,163,58,0.16);
     --danger:#FF6369;      --danger-soft:rgba(255,99,105,0.16);
@@ -124,18 +141,38 @@ code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--on-tonal);
   padding: 2px var(--s2);
   border-radius: var(--r-sm);
 }
 
 .hidden { display: none !important; }
 
-/* Focus is always visible, and always the same shape. */
+/* Focus is always visible, and always the same shape.
+ *
+ * This used to be `outline: none` plus a 4px glow of --accent-soft, which is a
+ * 12%-alpha blue: about 1.2:1 against the page, where WCAG asks for 3:1. It
+ * also set border-color, which does nothing on a button — `button, .btn` has
+ * `border: none` — so keyboard focus on every button in the extension was
+ * effectively invisible. On a vault whose passphrase flow is keyboard-driven,
+ * that is not a small thing.
+ *
+ * A real outline now, offset clear of the control so it reads against the page
+ * rather than against a filled button. `outline` rather than `box-shadow`
+ * because it still renders outside an `overflow: hidden` ancestor, and the
+ * offset gap is what keeps it visible on an accent-filled surface. The soft
+ * glow stays underneath as reinforcement. */
 :focus-visible {
-  outline: none;
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
   box-shadow: 0 0 0 4px var(--accent-soft);
   border-color: var(--accent);
+}
+
+/* Windows High Contrast / forced-colours mode replaces every colour above.
+   Keeping the outline in the system's own focus colour means it survives. */
+@media (forced-colors: active) {
+  :focus-visible { outline: 3px solid Highlight; outline-offset: 2px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -227,7 +264,7 @@ button:disabled:hover, .btn:disabled:hover { background: var(--accent); }
 .btn--primary { background: var(--accent); color: var(--on-accent); }
 .btn--tonal, button.secondary, .btn--tonal:hover, button.secondary:hover {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--on-tonal);
 }
 .btn--tonal:active, button.secondary:active { background: var(--accent-soft); }
 
@@ -389,7 +426,7 @@ input[type="file"]::file-selector-button {
   padding: var(--s2) var(--s4);
   font: var(--t-caption);
   font-weight: 600;
-  color: var(--accent);
+  color: var(--on-tonal);
   background: var(--accent-soft);
   border: none;
   border-radius: var(--r-pill);
@@ -445,7 +482,7 @@ input[type="file"]::file-selector-button {
 }
 .chip[aria-selected="true"], .chip--selected {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--on-tonal);
 }
 
 /* ---------- 11. Bottom sheet -------------------------------------------- */
@@ -529,7 +566,7 @@ input[type="file"]::file-selector-button {
   background: var(--warn-soft);
   color: var(--warn);
 }
-.badge.unlocked { background: var(--accent-soft); color: var(--accent); }
+.badge.unlocked { background: var(--accent-soft); color: var(--on-tonal); }
 
 .note, .locked-note {
   padding: var(--s3) var(--s4);
@@ -693,6 +730,21 @@ input[type="file"]::file-selector-button {
 .crop__controls { display: flex; align-items: center; gap: var(--s3); }
 .crop__controls label { font: var(--t-caption); color: var(--text-2); flex: 0 0 auto; }
 .crop__controls input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+
+/* The 460px column is deliberate everywhere else — it is what makes the options
+   page read as one calm screen rather than a settings sprawl. But two sections
+   are tools rather than forms: you aim a crop rectangle inside one and read
+   recognised text out of the other, and both are measurably harder at phone
+   width on a desktop display. They alone are allowed to breathe. */
+@media (min-width: 900px) {
+  #imageView, #ocrView {
+    max-width: 720px;
+    width: calc(100vw - var(--s10) * 2);
+    margin-inline: auto;
+  }
+  #imageView .crop__stage { max-height: 60vh; }
+  #imageView .crop__stage img { object-fit: contain; max-height: 60vh; }
+}
 
 /* ---------- 18. OCR ------------------------------------------------------ */
 

@@ -224,8 +224,11 @@
       </div>
 
       <div id="cropBox" class="crop hidden">
-        <div class="crop__stage" id="cropStage">
-          <img id="cropImage" alt="Drag to choose which part of the image to keep">
+        <div class="crop__stage" id="cropStage" tabindex="0" role="group"
+             aria-describedby="cropNote"
+             aria-label="Crop area. Drag, or use the arrow keys to move it and
+                         plus and minus to zoom.">
+          <img id="cropImage" alt="The image you chose, with the part that will be kept outlined">
           <div class="crop__shade" id="cropShade" aria-hidden="true"></div>
           <div class="crop__rect" id="cropRect" aria-hidden="true"></div>
         </div>

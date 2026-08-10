@@ -135,7 +135,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 function setBadge(tabId, count) {
   chrome.action.setBadgeText({ tabId, text: count > 0 ? String(count) : '' })
     .catch(() => {});
-  chrome.action.setBadgeBackgroundColor({ tabId, color: '#1B6FF3' }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ tabId, color: '#1968E4' }).catch(() => {});
 }
 
 /**
