@@ -41,7 +41,9 @@ const SAMPLE = {
     state: 'Maharashtra',
     postcode: '411005',
     pan: 'ABCDE1234F',
-    aadhaarMasked: 'XXXX XXXX 8842'
+    aadhaarMasked: 'XXXX XXXX 8842',
+    gender: 'Male',
+    category: 'OBC'
   },
   customFields: [],
   emails: []
@@ -57,13 +59,19 @@ const SAMPLE_LABELS = {
   state: 'State',
   postcode: 'PIN code',
   pan: 'PAN',
-  aadhaarMasked: 'Aadhaar (last 4 only)'
+  aadhaarMasked: 'Aadhaar (last 4 only)',
+  gender: 'Gender',
+  category: 'Category'
 };
 
 // Input types that are never fillable from a vault. Kept in step with
 // content.js's SKIP_TYPES by hand; `password` is the one that matters, and the
 // audit checks that one separately in both files.
-const SKIP_TYPES = new Set(['submit', 'button', 'reset', 'image', 'hidden', 'file']);
+// Radio and checkbox are excluded here because neither is judged one element at
+// a time: a radio belongs to a group, and a checkbox is never filled at all.
+const SKIP_TYPES = new Set([
+  'submit', 'button', 'reset', 'image', 'hidden', 'file', 'radio', 'checkbox'
+]);
 
 // --- Outcomes ---------------------------------------------------------------
 //
@@ -72,12 +80,14 @@ const SKIP_TYPES = new Set(['submit', 'button', 'reset', 'image', 'hidden', 'fil
 // father's field, or your details into a captcha, is the part worth showing.
 
 const OUTCOME = {
-  filled:     { tick: '✓', cls: 'tick--yes', why: (k) => `Filled from ${k}.` },
-  password:   { tick: '—', cls: 'tick--no', why: () => 'Password field. FormPilot never fills one, ever.' },
-  already:    { tick: '—', cls: 'tick--no', why: () => 'You had already typed something here. Never overwritten.' },
-  thirdParty: { tick: '—', cls: 'tick--no', why: () => 'Somebody else’s field. Your details do not go here unless you say so.' },
-  never:      { tick: '—', cls: 'tick--no', why: () => 'On the never-fill list. A form that asks this wants a human.' },
-  noMatch:    { tick: '—', cls: 'tick--no', why: () => 'Nothing in the vault matches this field.' }
+  filled:      { tick: '✓', cls: 'tick--yes', why: (k) => `Filled from ${k}.` },
+  chosen:      { tick: '✓', cls: 'tick--yes', why: (k) => `Chose the option matching ${k}.` },
+  password:    { tick: '—', cls: 'tick--no', why: () => 'Password field. FormPilot never fills one, ever.' },
+  already:     { tick: '—', cls: 'tick--no', why: () => 'You had already typed something here. Never overwritten.' },
+  thirdParty:  { tick: '—', cls: 'tick--no', why: () => 'Somebody else’s field. Your details do not go here unless you say so.' },
+  never:       { tick: '—', cls: 'tick--no', why: () => 'On the never-fill list. A form that asks this wants a human.' },
+  declaration: { tick: '—', cls: 'tick--no', why: () => 'A checkbox is a statement you are making. FormPilot never ticks one — that is yours to do, like pressing Submit.' },
+  noMatch:     { tick: '—', cls: 'tick--no', why: () => 'Nothing in the vault matches this field.' }
 };
 
 // --- Filling ----------------------------------------------------------------
@@ -100,6 +110,12 @@ function setNativeValue(el, value) {
 function announce(el) {
   el.dispatchEvent(new Event('input', { bubbles: true }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function setNativeChecked(el, checked = true) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
+  if (setter) setter.call(el, checked);
+  else el.checked = checked;
 }
 
 function fillSelect(el, value) {
@@ -148,6 +164,30 @@ function fieldLabel(el) {
 function fields() {
   const found = document.querySelectorAll('#portal input, #portal select, #portal textarea');
   return [...found].filter((el) => !SKIP_TYPES.has((el.type || 'text').toLowerCase()));
+}
+
+/** Each radio group, as one question — mirroring radioGroups() in content.js. */
+function groups() {
+  const byName = new Map();
+  for (const el of document.querySelectorAll('#portal input[type=radio]')) {
+    if (!byName.has(el.name)) byName.set(el.name, []);
+    byName.get(el.name).push(el);
+  }
+  return [...byName.values()];
+}
+
+function groupLabel(els) {
+  return els[0].closest('fieldset')?.dataset.group ?? els[0].name;
+}
+
+/** One radio's own label, which is what the vault value is matched against. */
+function radioOption(el) {
+  const label = el.closest('label')?.textContent ?? el.value;
+  return { value: el.value, text: String(label).trim() };
+}
+
+function checkboxes() {
+  return [...document.querySelectorAll('#portal input[type=checkbox]')];
 }
 
 // --- Rendering --------------------------------------------------------------
@@ -203,7 +243,7 @@ function renderReport(rows) {
     outcome.append(line);
   }
 
-  const filled = rows.filter((r) => r.outcome === 'filled').length;
+  const filled = rows.filter((r) => r.outcome === 'filled' || r.outcome === 'chosen').length;
   const refused = rows.length - filled;
 
   const badge = document.getElementById('resultBadge');
@@ -224,6 +264,28 @@ document.getElementById('fillBtn').addEventListener('click', () => {
   const values = M.expandValues(SAMPLE.fields, SAMPLE.customFields, SAMPLE.emails);
 
   const rows = fields().map((el) => judge(el, dictionary));
+
+  // Radio groups: the group is the unit, and the real matcher decides both
+  // which question it is and which option answers it.
+  for (const els of groups()) {
+    const label = groupLabel(els);
+    const key = M.inferKey(M.normalise(els[0].name), dictionary)?.key ?? null;
+    const value = key ? values[key] : undefined;
+    const index = value === undefined ? -1 : M.chooseOption(value, els.map(radioOption));
+
+    if (index < 0) { rows.push({ el: els[0], label, outcome: 'noMatch', key: null }); continue; }
+
+    setNativeChecked(els[index]);
+    announce(els[index]);
+    els[index].closest('label')?.classList.add('is-filled');
+    rows.push({ el: els[index], label, outcome: 'chosen', key });
+  }
+
+  // Checkboxes: never, and the reason is the point.
+  for (const box of checkboxes()) {
+    const label = box.closest('label')?.textContent.trim().slice(0, 46) ?? box.name;
+    rows.push({ el: box, label: `${label}…`, outcome: 'declaration', key: null });
+  }
 
   for (const row of rows) {
     if (row.outcome !== 'filled') continue;
@@ -252,6 +314,10 @@ document.getElementById('resetBtn').addEventListener('click', () => {
     if (el.id === 'altemail') continue;      // the pre-filled one stays pre-filled
     setNativeValue(el, '');
     el.classList.remove('is-filled');
+  }
+  for (const el of document.querySelectorAll('#portal input[type=radio], #portal input[type=checkbox]')) {
+    setNativeChecked(el, false);
+    el.closest('label')?.classList.remove('is-filled');
   }
   document.getElementById('resultView').classList.add('hidden');
 });

@@ -18,12 +18,16 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 | 7 | Shippable: licence, privacy policy, permission diet, CI | ✅ done |
 | 8 | Earn trust in the first ninety seconds | ✅ done |
 | 9 | Launch — Edge Add-ons (free) first, Chrome when the $5 is available | 🟡 prepared — submission pending |
-| 10 | Win the market it was built for | planned |
-| 11 | Distribution | ongoing |
+| 10 | Choice fields — radio groups, and the checkbox refusal | ✅ done |
+| 11 | Crop to aspect ratio, change passphrase, OCR pre-processing | planned |
+| 12 | Reach — split `options.js`, then `_locales` (en, hi, mr) | planned |
+| 13 | Distribution | ongoing |
 
-Phases 0–6 built the extension. Phases 7–11 are about the gap between "an
+Phases 0–6 built the extension. Phases 7–9 are about the gap between "an
 extension that works" and "an extension people can find, trust and install" —
-almost none of it feature work.
+almost none of it feature work. Phases 10–12 close the gaps that make a real
+portal application fail halfway through; the old single Phase 10 was four
+phases wearing a trenchcoat and has been split.
 
 ---
 
@@ -422,6 +426,80 @@ GitHub Pages deploy for the privacy-policy URL, the five screenshots, the upload
 — and, before any of it, ten minutes actually driving the extension in a
 browser. Every browser-dependent change in Phases 7 and 8 is verified against
 stubs, not against Chrome. Step 0 of the checklist is that walkthrough.
+
+## Phase 10 — Choice fields ✅
+
+The old Phase 10 ("win the market") was four phases wearing a trenchcoat. Split
+into 10, 11 and 12; this is the first, and it is the one that changes how a real
+portal form reports.
+
+**The problem.** Indian portal forms are dense with radio groups — Gender,
+Category, Domicile, Marital status — and every one of them counted towards "Y"
+and was never filled. A nineteen-field form reported *"filled 6 of 19"* and read
+as broken even when the six were right.
+
+**Three new vault fields**: `gender`, `category`, `maritalStatus`. Dropdowns in
+the options page rather than free text, so the stored value is drawn from the
+same vocabulary the matching expects. Encrypted like everything else.
+
+**Radio groups are filled; the group is the unit.** `radioGroups()` buckets by
+`name` within a form — the same name in two forms is two different questions —
+and skips any group already answered. `describeGroup()` reads the *question*
+(the `name`, the `<legend>`, explicit ARIA labelling) and deliberately not the
+fieldset's `textContent`, which would sweep up every option label
+("gender male female other") and match on the answers instead.
+
+Visibility is judged like a file input's rather than a text field's: a custom
+radio UI routinely hides the real `<input>` under a styled `<label>`, so only
+actual unreachability disqualifies one.
+
+**The two-pass split survives.** Which radio to tick depends on the value, and a
+plan runs before any value has crossed into the page — so the plan names the
+group and the key it needs, and resolving that to one option happens at fill
+time, locally. Radios ride the same `keys`/`values` channel as text, because
+they answer the same vault keys: nothing more crosses into a page than a fill
+already carried.
+
+**Checkboxes are refused permanently, and that became hard rule 1a.** A checkbox
+on these forms is overwhelmingly a statement the user is making — "I hereby
+declare the above to be true", "I accept the terms". Ticking one asserts it on
+their behalf, which is the same category of act as pressing Submit for them. The
+few checkboxes carrying mere facts are not worth the ones that do not.
+
+**A real bug fixed on the way.** `fillSelect()`'s loose pass was a substring
+test, and `'female'.includes('male')` is `true` — a user who stored "Male" would
+have had "Female" selected. Option matching moved into `chooseOption()` in
+`lib/match.js`, shared by `<select>`s and radios so the two can never disagree,
+and its loose pass is now word-boundary matched. Values of two characters skip
+that pass entirely, or "SC" would hit "SC/ST" and everything near it.
+
+**`CHOICE_ONLY`.** `gender`, `category` and `maritalStatus` fill only a control
+with a fixed set of options. `category` is a generic enough word to match a box
+labelled "Job Category", and "OBC" typed into that is wrong rather than merely
+useless. The restriction is what makes a bad guess inert: the value either
+matches an offered option or nothing happens.
+
+**Fixtures.** `test/form.html` gained three radio groups, an already-answered
+group that must not change, and three checkboxes (a declaration, terms, a
+newsletter) that must stay unticked — graded as `CONSENT VIOLATION` if they are
+not. `demo.html` shows the same, so the try-it page keeps telling the truth
+about what the real thing does.
+
+Verified against both fixtures with the real matcher: every group resolves to
+the right key and ticks the right option, the answered group is skipped, and
+every checkbox is left alone.
+
+Four new mutations, all caught: filling checkboxes, reverting option matching to
+a substring test, letting a choice-only key fill free text, and faking only the
+demo's radio path — that last one because the demo now has two independent
+decision paths and a whole-file grep for `M.inferKey` kept reporting green while
+one of them was fake.
+
+**Done when:** a form with Gender, Category and Marital status radio groups has
+all three answered on one Fill click, and no declaration checkbox is ever
+ticked. ✅
+
+**Deferred:** same-origin iframes; teach mode for radio groups.
 
 ---
 

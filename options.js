@@ -601,6 +601,13 @@ $('unlockedView').addEventListener('input', (e) => {
   if (e.target.matches('[data-field]')) setDirty(true);
 });
 
+// <select> fires `input` in current browsers, but `change` is the event it is
+// specified to fire and the one older engines send - a dropdown edit that never
+// marks the vault dirty is silently lost on save.
+$('unlockedView').addEventListener('change', (e) => {
+  if (e.target.matches('[data-field]')) setDirty(true);
+});
+
 // PAN is conventionally uppercase; validate softly rather than blocking typing.
 $('f-pan').addEventListener('input', () => {
   const el = $('f-pan');

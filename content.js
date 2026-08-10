@@ -36,8 +36,21 @@ if (!globalThis.__formPilotContentLoaded) {
   const MAX_FILL_KEYS = 60;
   const MAX_FILL_DOC_TYPES = 20;
 
-  // Input types that are never fillable from the vault. `password` is the one
-  // that matters; the rest are simply not text.
+  // Input types this pass never fills. `password` is the one that matters; most
+  // of the rest are simply not text. Two are here for their own reasons:
+  //
+  //   radio    - handled separately, by radioGroups() below. A single radio in
+  //              isolation is meaningless; the group is the unit.
+  //
+  //   checkbox - REFUSED ON PURPOSE, permanently, and not for want of effort.
+  //              A checkbox on a form of this kind is overwhelmingly a
+  //              statement the user is making: "I hereby declare the above to
+  //              be true", "I accept the terms", "I consent to...". Ticking one
+  //              makes that assertion on their behalf, which is the same
+  //              category of act as pressing Submit for them - and CLAUDE.md's
+  //              first hard rule exists precisely because that is not ours to
+  //              do. The handful of checkboxes that carry mere facts are not
+  //              worth the ones that do not.
   const SKIP_TYPES = new Set([
     'password', 'hidden', 'submit', 'button', 'reset', 'image', 'file',
     'checkbox', 'radio', 'range', 'color'
@@ -194,6 +207,85 @@ if (!globalThis.__formPilotContentLoaded) {
   }
 
   // ==========================================================================
+  // Radio groups
+  // ==========================================================================
+  //
+  // Indian portal forms are dense with these - Gender, Category, Domicile,
+  // Marital status - and until now every one of them counted towards "Y" and
+  // was never filled, so a form of nineteen fields reported "filled 6 of 19"
+  // and read as broken even when the six were right.
+  //
+  // A radio group is safe to fill in a way a checkbox is not: see the note in
+  // SKIP_TYPES. Picking one of "Male / Female / Other" states a fact about the
+  // user. Ticking a box marked "I hereby declare the above to be true" makes an
+  // assertion on their behalf, and FormPilot does not do that.
+  //
+  // Visibility is judged like a file input's, not like a text field's: a custom
+  // radio UI routinely hides the real <input> under a styled <label>, so only
+  // actual unreachability disqualifies one.
+
+  /** Radios sharing a name within the same form are one group. */
+  function radioGroups() {
+    const byForm = new Map();
+
+    for (const el of document.querySelectorAll('input[type=radio]')) {
+      if (!el.name || el.disabled) continue;
+      if (!isReachable(el, getComputedStyle(el))) continue;
+
+      // The same name in two different forms is two different questions.
+      const form = el.form ?? null;
+      if (!byForm.has(form)) byForm.set(form, new Map());
+      const byName = byForm.get(form);
+      if (!byName.has(el.name)) byName.set(el.name, []);
+      byName.get(el.name).push(el);
+    }
+
+    const groups = [];
+    for (const byName of byForm.values()) groups.push(...byName.values());
+    return groups;
+  }
+
+  /**
+   * The question a group is asking, as one searchable string.
+   *
+   * Deliberately NOT the fieldset's textContent - that would sweep up every
+   * option label ("gender male female other") and match on the answers instead
+   * of the question. Only the legend, the name, and explicit ARIA labelling.
+   */
+  function describeGroup(els) {
+    const first = els[0];
+    const parts = [first.name];
+
+    const fieldset = first.closest('fieldset');
+    if (fieldset) parts.push(fieldset.querySelector('legend')?.textContent);
+
+    const group = first.closest('[role="radiogroup"]');
+    if (group) {
+      parts.push(group.getAttribute('aria-label'));
+      const labelledBy = group.getAttribute('aria-labelledby');
+      if (labelledBy) {
+        for (const id of labelledBy.split(/\s+/)) {
+          parts.push(document.getElementById(id)?.textContent);
+        }
+      }
+    }
+
+    return M.normalise(parts.filter(Boolean).map((part) => String(part).slice(0, 200)).join(' ').slice(0, 600));
+  }
+
+  /** One radio's own label, which is what the vault value is matched against. */
+  function radioOption(el) {
+    const label = el.labels?.[0]?.textContent ?? el.closest('label')?.textContent ?? '';
+    return { value: el.value, text: String(label).trim().slice(0, 200) };
+  }
+
+  function setNativeChecked(el) {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
+    if (setter) setter.call(el, true);
+    else el.checked = true;
+  }
+
+  // ==========================================================================
   // Filling
   // ==========================================================================
 
@@ -234,23 +326,19 @@ if (!globalThis.__formPilotContentLoaded) {
     return iso;
   }
 
+  // Option matching lives in lib/match.js so a <select> and a radio group can
+  // never disagree about what "Male" or "OBC" resolves to. It also fixed a real
+  // bug this function used to have: its loose pass was a substring test, and
+  // 'female'.includes('male') is true.
   function fillSelect(el, value) {
-    const want = String(value).trim().toLowerCase();
-    for (const option of el.options) {
-      if (option.value.toLowerCase() === want || option.textContent.trim().toLowerCase() === want) {
-        setNativeValue(el, option.value);
-        return true;
-      }
-    }
-    if (want.length > 2) {
-      for (const option of el.options) {
-        if (option.textContent.trim().toLowerCase().includes(want)) {
-          setNativeValue(el, option.value);
-          return true;
-        }
-      }
-    }
-    return false;
+    const options = [...el.options].map((option) => ({
+      value: option.value,
+      text: option.textContent
+    }));
+    const index = M.chooseOption(value, options);
+    if (index < 0) return false;
+    setNativeValue(el, el.options[index].value);
+    return true;
   }
 
   function fillOne(el, value) {
@@ -366,6 +454,14 @@ if (!globalThis.__formPilotContentLoaded) {
 
       if (!key) { skipped.noMatch++; continue; }
 
+      // A choice-only key needs a control with a fixed set of options, so that
+      // a bad guess is harmless - the value either matches an option or nothing
+      // happens. "OBC" typed into a free-text "Job Category" box is neither.
+      if (M.CHOICE_ONLY.has(key) && el.tagName.toLowerCase() !== 'select') {
+        skipped.noMatch++;
+        continue;
+      }
+
       // The vault has nothing under that key, so there is nothing to ask for.
       if (!available.has(key)) { skipped.noValue++; continue; }
 
@@ -384,15 +480,50 @@ if (!globalThis.__formPilotContentLoaded) {
     return { plan, skipped, total };
   }
 
+  /**
+   * Which radio groups could be answered from the vault.
+   *
+   * WHICH radio to check cannot be decided here, because it depends on the
+   * value - and a plan runs before any value has crossed into this page. So the
+   * plan names the group and the key it needs; resolving that to one option
+   * happens at fill time, locally, once the value is in hand. The two-pass
+   * split survives intact.
+   */
+  function planRadioFill({ keys, customFields = [], emails = [] }) {
+    const available = safeKeys(keys);
+    const dictionary = M.buildDictionary(customFields, emails);
+    const plan = [];
+
+    for (const els of radioGroups()) {
+      if (els.some((el) => el.checked)) continue;       // already answered
+      const key = M.inferKey(describeGroup(els), dictionary)?.key ?? null;
+      if (!key || !available.has(key)) continue;
+      plan.push({ els, key });
+    }
+    return plan;
+  }
+
   /** The plan as a message: a count and the key/type names needed, no elements. */
   function describePlan(message) {
     const { plan, skipped, total } = planFill(message);
-    const keys = [...new Set(plan.map((item) => item.key))].slice(0, MAX_FILL_KEYS);
+    const radioPlan = planRadioFill(message);
+
+    const keys = [...new Set([
+      ...plan.map((item) => item.key),
+      ...radioPlan.map((item) => item.key)
+    ])].slice(0, MAX_FILL_KEYS);
 
     const docPlan = planDocFill(message);
     const docTypes = [...new Set(docPlan.map((item) => item.type))].slice(0, MAX_FILL_DOC_TYPES);
 
-    return { count: plan.length, keys, total, skipped, docCount: docPlan.length, docTypes };
+    return {
+      count: plan.length + radioPlan.length,
+      keys,
+      total: total + radioPlan.length,
+      skipped,
+      docCount: docPlan.length,
+      docTypes
+    };
   }
 
   /**
@@ -418,6 +549,25 @@ if (!globalThis.__formPilotContentLoaded) {
       if (highlight) outline(el);
     }
 
+    // Radio groups ride the same keys/values channel as text, because they
+    // answer the same vault keys - no extra message field, nothing more crossing
+    // into the page than a fill already carried.
+    const radioPlan = planRadioFill({ ...message, keys: Object.keys(values) });
+    let radioTotal = radioPlan.length;
+
+    for (const { els, key } of radioPlan) {
+      const value = values[key];
+      if (value === undefined || value === null || value === '') continue;
+
+      const index = M.chooseOption(value, els.map(radioOption));
+      if (index < 0) continue;                 // no option means what we hold
+
+      setNativeChecked(els[index]);
+      announce(els[index]);
+      filled.push({ key, source: 'radio' });
+      if (highlight) outline(els[index]);
+    }
+
     const docs = (message.docs && typeof message.docs === 'object') ? message.docs : {};
     const docPlan = planDocFill({ ...message, docKeys: Object.keys(docs) });
     let filledDocs = 0;
@@ -430,8 +580,9 @@ if (!globalThis.__formPilotContentLoaded) {
       if (highlight) outline(el);
     }
 
-    showToast(filled.length, total, skipped, filledDocs);
-    return { filled: filled.length, total, skipped, details: filled, filledDocs };
+    const grandTotal = total + radioTotal;
+    showToast(filled.length, grandTotal, skipped, filledDocs);
+    return { filled: filled.length, total: grandTotal, skipped, details: filled, filledDocs };
   }
 
   // ==========================================================================

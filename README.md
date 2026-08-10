@@ -80,8 +80,9 @@ rather than decorative.
 
 ### Encrypted vault
 Personal fields (name, date of birth, email, phone, address, PAN, masked
-Aadhaar), any number of custom fields, and document images — all encrypted at
-rest with AES-256-GCM under a key derived from your passphrase.
+Aadhaar, plus gender, category and marital status for the choice fields portal
+forms ask for), any number of custom fields, and document images — all encrypted
+at rest with AES-256-GCM under a key derived from your passphrase.
 
 **Several email addresses.** Keep a main address plus any number of extras
 labelled Personal, Work, College, Alternate or Parent/Guardian. A form asking
@@ -103,6 +104,17 @@ and fills it, outlines what it touched, and reports "filled X of Y".
 It **never submits the form**, never fills password fields, skips hidden
 honeypot fields, and never overwrites something you already typed. Review and
 submit yourself, always.
+
+**Radio buttons too.** Gender, Category and Marital status — the dropdowns and
+radio groups portal forms are dense with — are answered from the vault. A group
+is only answered if one of its options actually matches what you stored, so a
+misread question does nothing rather than something wrong.
+
+**But it never ticks a checkbox**, and that is deliberate rather than
+unfinished. A checkbox on these forms is almost always a statement *you* are
+making — "I hereby declare the above to be true", "I accept the terms". Ticking
+it would be FormPilot asserting that for you, which is the same thing as
+pressing Submit for you. It doesn't do either.
 
 It also leaves **other people's fields alone**. "Father's Name", "Spouse Email",
 "Nominee", "Emergency Contact" and the like are never filled with your own
@@ -260,10 +272,11 @@ pre-filled email that must all be left alone. Anything red is a bug.
 
 - English OCR only, with no image pre-processing — deskewing and thresholding
   would be the biggest accuracy win on phone photos.
-- Autofill does not handle checkboxes, radio groups or iframes. Text inputs,
-  `<select>` dropdowns and single-file image uploads (photo, signature, PAN,
+- Autofill does not reach forms inside iframes. Text inputs, `<select>`
+  dropdowns, radio groups and single-file image uploads (photo, signature, PAN,
   Aadhaar, other ID proof) are handled; `multiple` file inputs and PDF uploads
-  are not — the vault only ever stores images.
+  are not — the vault only ever stores images. Checkboxes are refused on
+  purpose, as above.
 - The image tool scales but does not crop, so specs demanding an exact aspect
   ratio (3.5×4.5 cm) need cropping elsewhere first.
 - No change-passphrase flow yet, so a backup stays tied to the passphrase in

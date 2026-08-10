@@ -396,6 +396,25 @@ console.log('\n12. The demo demonstrates, and does not simulate');
     /M\.NEVER\.test/.test(demo) && /M\.THIRD_PARTY\.test/.test(demo),
     'the refusals are the persuasive half; they must be genuine');
 
+  // Scoped per call site, not just "does M.inferKey appear anywhere". The demo
+  // has two independent decision paths - text fields and radio groups - and a
+  // whole-file grep would keep passing while one of them was quietly faked.
+  {
+    const judgeFn = /function judge\(el, dictionary\)[\s\S]*?\n\}/.exec(demo)?.[0] ?? '';
+    ok('judge() is defined', judgeFn.length > 0);
+    ok('text fields are judged by the real matcher', /M\.inferKey\(/.test(judgeFn));
+
+    const fillHandler = /getElementById\('fillBtn'\)\.addEventListener[\s\S]*?\n\}\);/.exec(demo)?.[0] ?? '';
+    ok('the fill handler is defined', fillHandler.length > 0);
+    ok('radio groups are matched by the real matcher', /M\.inferKey\(/.test(fillHandler));
+    ok('radio options are resolved by the real chooser', /M\.chooseOption\(/.test(fillHandler),
+      'otherwise the demo picks an option the real extension would not');
+  }
+
+  ok('the demo shows a checkbox being refused',
+    /declaration:/.test(demo) && /input\[type=checkbox\]/.test(demo),
+    'the refusal is the most surprising thing FormPilot does; show it');
+
   // The whole promise of the demo is that it costs the user nothing. Reading a
   // real vault would break that promise even if it only ever displayed it.
   for (const [name, file] of [['demo.js', demo], ['welcome.js', code['welcome.js']]]) {
@@ -451,6 +470,56 @@ console.log('\n14. The welcome page opens once, on a real install');
 ok('welcome.html is opened on install',
   /reason === 'install'[\s\S]{0,200}welcome\.html/.test(code['background.js']),
   'not on update, not on every service-worker wake');
+
+// ============================================================================
+console.log('\n15. Choice fields: never consent, never guess an option');
+// ============================================================================
+
+{
+  const content = code['content.js'];
+  const match = code['lib/match.js'];
+
+  // A checkbox on these forms is overwhelmingly a statement the user is making
+  // - "I hereby declare", "I accept the terms". Ticking one asserts it on their
+  // behalf, which is the same category of act as pressing Submit for them.
+  ok('checkbox stays in SKIP_TYPES',
+    /SKIP_TYPES[\s\S]{0,400}'checkbox'/.test(content),
+    'ticking a declaration is consenting on the user’s behalf');
+  {
+    // Exactly one place may tick anything, and it is reachable only from the
+    // radio path. A stray `el.checked = true` elsewhere is how a checkbox ends
+    // up ticked by accident.
+    const helper = /function setNativeChecked\([\s\S]*?\n  \}/.exec(content)?.[0] ?? '';
+    ok('setNativeChecked is defined', helper.length > 0);
+    const elsewhere = content.replace(helper, '');
+    ok('nothing ticks anything outside setNativeChecked',
+      !/\.checked\s*=[^=]/.test(elsewhere),
+      'one door, and only radios have the key');
+  }
+  ok('radios are never filled by clicking',
+    !/\.click\s*\(/.test(content),
+    'a click on the page could reach a submit button');
+
+  // A radio is only ever ticked when the vault value matches one of the offered
+  // options, so a wrong guess about which question a group is asking is inert.
+  ok('radio filling goes through chooseOption',
+    /M\.chooseOption\(value, els\.map\(radioOption\)\)/.test(content));
+  ok('a group with no matching option is left alone',
+    /if \(index < 0\) continue;/.test(content));
+
+  // The bug this replaced: 'female'.includes('male') is true, so a substring
+  // pass ticks Female for a user who stored Male.
+  const chooseOption = /function chooseOption\([\s\S]*?\n  \}/.exec(match)?.[0] ?? '';
+  ok('chooseOption is defined', chooseOption.length > 0);
+  ok('chooseOption matches on word boundaries, not substrings',
+    /\\\\b\$\{want/.test(chooseOption) && !/\.includes\(/.test(chooseOption),
+    "'female'.includes('male') is true — a substring pass ticks the wrong option");
+
+  ok('CHOICE_ONLY exists', /const CHOICE_ONLY\s*=\s*new Set/.test(match));
+  ok('CHOICE_ONLY is enforced against free-text inputs',
+    /M\.CHOICE_ONLY\.has\(key\)[\s\S]{0,120}!==\s*'select'/.test(content),
+    '"OBC" typed into a free-text "Job Category" box is wrong, not merely useless');
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

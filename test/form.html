@@ -107,6 +107,52 @@
     <label for="d6" style="color:#b3261e">Honeypot (hidden to humans, bots fill it)</label>
     <input id="d6" name="fullName" style="position:absolute; left:-9999px" data-expect="never">
 
+    <h2>Radio groups &mdash; Phase 10</h2>
+    <p class="note">
+      Set Gender, Category and Marital status in the vault first. Each group
+      should end with the matching option selected. The declaration checkbox
+      below them must stay <strong>unticked</strong>: ticking it would be
+      FormPilot asserting something on your behalf, which it never does.
+    </p>
+
+    <fieldset data-expect-group="Gender">
+      <legend>Gender</legend>
+      <label><input type="radio" name="gender" value="M"> Male</label>
+      <label><input type="radio" name="gender" value="F"> Female</label>
+      <label><input type="radio" name="gender" value="T"> Transgender</label>
+    </fieldset>
+
+    <fieldset data-expect-group="Category">
+      <legend>Category</legend>
+      <label><input type="radio" name="category" value="gen"> General / Unreserved</label>
+      <label><input type="radio" name="category" value="obc"> OBC</label>
+      <label><input type="radio" name="category" value="sc"> SC</label>
+      <label><input type="radio" name="category" value="st"> ST</label>
+    </fieldset>
+
+    <fieldset data-expect-group="Marital status">
+      <legend>Marital Status</legend>
+      <label><input type="radio" name="marital_status" value="s"> Single</label>
+      <label><input type="radio" name="marital_status" value="m"> Married</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Already answered &mdash; must not be changed</legend>
+      <label><input type="radio" name="domicile" value="y" checked
+                    data-expect="keep-checked"> Yes</label>
+      <label><input type="radio" name="domicile" value="n"
+                    data-expect="never-checked"> No</label>
+    </fieldset>
+
+    <h2>Checkboxes &mdash; must never be ticked</h2>
+    <label><input type="checkbox" name="declaration" data-expect="never-checked">
+      I hereby declare that the information given above is true to the best of my
+      knowledge.</label>
+    <label><input type="checkbox" name="terms" data-expect="never-checked">
+      I accept the terms and conditions.</label>
+    <label><input type="checkbox" name="newsletter" data-expect="never-checked">
+      Send me updates about other examinations.</label>
+
     <h2>Must stay untouched &mdash; already has a value</h2>
     <label for="e1">Email (you typed this yourself)</label>
     <input id="e1" type="email" autocomplete="email" value="do-not-overwrite@example.com"
@@ -151,9 +197,14 @@
       for (const el of document.querySelectorAll('[data-expect]')) {
         const expect = el.dataset.expect;
         const isFile = el.type === 'file';
-        const value = isFile ? '' : (el.value || '').trim();
-        const filled = isFile ? el.files.length > 0 : Boolean(value);
-        const name = document.querySelector(`label[for="${el.id}"]`)?.textContent.trim() || el.id;
+        const isTick = el.type === 'checkbox' || el.type === 'radio';
+        const value = (isFile || isTick) ? '' : (el.value || '').trim();
+        const filled = isFile ? el.files.length > 0
+                     : isTick ? el.checked
+                     : Boolean(value);
+        const label = el.closest('label')?.textContent.trim();
+        const name = document.querySelector(`label[for="${el.id}"]`)?.textContent.trim()
+                   || label || el.id || el.name;
 
         if (expect === 'fill' || expect === 'fill-doc') {
           want++;
@@ -161,8 +212,29 @@
         } else if ((expect === 'never' || expect === 'never-doc') && filled) {
           const what = isFile ? el.files[0].name : value;
           violations.push(`SAFETY VIOLATION: "${name}" was filled with "${what}"`);
+        } else if (expect === 'never-checked' && el.checked) {
+          // Ticking a declaration or a consent is FormPilot making a statement
+          // for the user. It is in the same category as pressing Submit.
+          violations.push(`CONSENT VIOLATION: "${name}" was ticked`);
+        } else if (expect === 'keep-checked' && !el.checked) {
+          violations.push(`OVERWRITE: "${name}" was un-ticked`);
         } else if (expect === 'keep' && value !== el.dataset.original) {
           violations.push(`OVERWRITE: "${name}" was changed to "${value}"`);
+        }
+      }
+
+      // Radio groups are graded as one question each: something should have been
+      // chosen, and the page reports WHICH so you can eyeball it against the vault.
+      const chosen = [];
+      for (const group of document.querySelectorAll('[data-expect-group]')) {
+        want++;
+        const picked = group.querySelector('input[type=radio]:checked');
+        if (picked) {
+          got++;
+          const text = picked.closest('label')?.textContent.trim() || picked.value;
+          chosen.push(`${group.dataset.expectGroup}: ${text}`);
+        } else {
+          chosen.push(`${group.dataset.expectGroup}: — nothing chosen`);
         }
       }
 
@@ -178,10 +250,18 @@
         li.textContent = message;
         list.append(li);
       }
+      for (const line of chosen) {
+        const li = document.createElement('li');
+        li.className = line.includes('nothing chosen') ? '' : 'good';
+        li.textContent = line;
+        list.append(li);
+      }
+
       if (!violations.length && got) {
         const li = document.createElement('li');
         li.className = 'good';
-        li.textContent = 'No safety violations. Nothing forbidden was filled, nothing was overwritten.';
+        li.textContent = 'No safety violations. Nothing forbidden was filled, '
+          + 'nothing was overwritten, no declaration was ticked.';
         list.append(li);
       }
     }

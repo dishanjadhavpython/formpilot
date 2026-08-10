@@ -35,6 +35,24 @@
       padding: var(--s2) var(--s3);
     }
     .portal textarea { min-height: 62px; resize: vertical; }
+    .portal fieldset {
+      border: 1px solid var(--divider);
+      border-radius: var(--r-sm);
+      padding: var(--s2) var(--s3) var(--s3);
+      margin: 0;
+      min-width: 0;
+    }
+    .portal legend { font: var(--t-caption); color: var(--text-2); padding: 0 var(--s1); }
+    .portal fieldset label,
+    .portal label.tick {
+      display: flex;
+      align-items: center;
+      gap: var(--s2);
+      font: var(--t-caption);
+      color: var(--text);
+      margin: var(--s1) 0 0;
+    }
+    .portal input[type="radio"], .portal input[type="checkbox"] { width: auto; flex: 0 0 auto; }
     /* Matches what content.js draws on a real page: a 2px accent outline. */
     .portal .is-filled {
       outline: 2px solid var(--accent);
@@ -147,6 +165,27 @@
           <input id="aadhaar" name="aadhaar_number" type="text"></div>
         <div class="row"><label for="company">Company Name</label>
           <input id="company" name="company_name" type="text"></div>
+
+        <fieldset class="row" data-group="Gender">
+          <legend>Gender</legend>
+          <label><input type="radio" name="gender" value="M"> Male</label>
+          <label><input type="radio" name="gender" value="F"> Female</label>
+          <label><input type="radio" name="gender" value="T"> Transgender</label>
+        </fieldset>
+
+        <fieldset class="row" data-group="Category">
+          <legend>Category</legend>
+          <label><input type="radio" name="category" value="gen"> General / Unreserved</label>
+          <label><input type="radio" name="category" value="obc"> OBC</label>
+          <label><input type="radio" name="category" value="sc"> SC</label>
+          <label><input type="radio" name="category" value="st"> ST</label>
+        </fieldset>
+
+        <div class="row full">
+          <label class="tick"><input type="checkbox" name="declaration">
+            I hereby declare that the information given above is true to the best
+            of my knowledge.</label>
+        </div>
 
         <div class="portal-head">Section B &mdash; Create your login</div>
 

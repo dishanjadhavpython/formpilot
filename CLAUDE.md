@@ -16,6 +16,19 @@ These are not preferences. Breaking one is a bug, even if the feature works.
 
 1. **Never auto-submit a form.** No `form.submit()`, no `.click()` on submit
    buttons, no Enter-key synthesis. The user reviews and submits, always.
+
+1a. **Never tick a checkbox.** Same principle as rule 1, and it is not a
+   limitation waiting to be lifted. A checkbox on the forms this extension
+   exists for is overwhelmingly a *statement the user is making* — "I hereby
+   declare the above to be true", "I accept the terms", "I consent to receive".
+   Ticking one asserts it on their behalf, which is the same category of act as
+   pressing Submit for them. The few checkboxes carrying mere facts are not
+   worth the ones that do not. `checkbox` stays in `SKIP_TYPES` in `content.js`,
+   and `npm run audit` fails if it leaves.
+
+   **Radio groups are different and *are* filled.** Choosing one of "Male /
+   Female / Other" states a fact; it asserts nothing the user has not already
+   told the vault. See "Choice fields" below.
 2. **Never write plaintext personal data to disk.** Anything personal reaches
    `chrome.storage.local` only via `encryptVault()` in `lib/crypto.js`. Exactly
    three unencrypted keys exist, and adding a fourth needs a good reason:
@@ -146,6 +159,31 @@ vendor/           third-party libs, local copies only
 tools/            dev scripts, not shipped
 icons/
 ```
+
+## Choice fields
+
+Radio groups and `<select>`s are filled through one shared path, and both
+safety properties come from the same place.
+
+- **The group is the unit, never the individual radio.** `radioGroups()` in
+  `content.js` buckets by `name` *within a form* — the same name in two forms is
+  two different questions. A group with any radio already checked is left alone.
+- **`describeGroup()` reads the question, never the answers.** The `name`, the
+  `<legend>`, and explicit ARIA labelling only. Using the fieldset's
+  `textContent` would sweep up every option label ("gender male female other")
+  and match on the answers.
+- **A value must match an offered option or nothing happens.** `chooseOption()`
+  in `lib/match.js` is the single matcher for both radios and `<select>`s, so
+  the two can never disagree about what "Male" or "OBC" resolves to. This is
+  what makes a *wrong* guess about which question a group asks harmless.
+- **Its loose pass is word-boundary matched, never a substring test.**
+  `'female'.includes('male')` is `true`, and a substring pass therefore ticks
+  Female for a user who stored Male. Two-character values skip the loose pass
+  entirely, or "SC" would hit "SC/ST" and everything near it.
+- **`CHOICE_ONLY` keys never fill free text.** `gender`, `category` and
+  `maritalStatus` only fill a control with a fixed set of options. `category` is
+  a generic enough word to match a box labelled "Job Category", and "OBC" typed
+  into that is wrong rather than merely useless.
 
 ## The demo must never become a mock-up
 

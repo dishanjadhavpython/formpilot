@@ -92,8 +92,8 @@ Full detail, with the *why* behind each: **[README.md](README.md)**.
 
 | | |
 |---|---|
-| Encrypted vault | Name, DOB, phone, address, PAN, masked Aadhaar, unlimited custom fields and labelled emails, document images by type |
-| Autofill | Notices a form on its own (badge + inline chip), or click "Fill this form". Infers field meaning from label/name/autocomplete/synonyms, including single-file image uploads (Aadhaar/PAN/photo/signature) matched by label. Never submits, never fills passwords, never overwrites, never fills someone else's field with your data |
+| Encrypted vault | Name, DOB, phone, address, PAN, masked Aadhaar, gender/category/marital status, unlimited custom fields and labelled emails, document images by type |
+| Autofill | Notices a form on its own (badge + inline chip), or click "Fill this form". Infers field meaning from label/name/autocomplete/synonyms, including radio groups, `<select>`s, and single-file image uploads (Aadhaar/PAN/photo/signature) matched by label. Never submits, never ticks a checkbox, never fills passwords, never overwrites, never fills someone else's field with your data |
 | Teach mode | Click a field, label it, remembered per-site for next time |
 | Image tool | Compress into an exact KB band (not just a maximum) at a target pixel size; 3 presets + custom specs |
 | OCR | On-device PAN/Aadhaar/marksheet reading, editable suggestions, nothing saved until you say so |
@@ -211,11 +211,13 @@ run.md                 first run, dev loop, troubleshooting
 
 - English OCR only; no image pre-processing (deskew/threshold), which would be
   the biggest accuracy win on phone photos.
-- Autofill doesn't handle checkboxes, radio groups, `multiple` file inputs, or
-  same-origin iframes. Single-file image uploads are handled for a fixed set
-  of document types (photo, signature, PAN, Aadhaar, other ID proof) — see
-  Phase 6 in PLAN.md — but not marksheets/other types, and not PDF uploads
-  (the vault only ever stores images).
+- Autofill doesn't handle `multiple` file inputs or same-origin iframes.
+  Checkboxes are refused permanently and on purpose (hard rule 1a — ticking one
+  asserts something on the user's behalf); radio groups and `<select>`s *are*
+  filled, via `chooseOption()`. Single-file image uploads are handled for a
+  fixed set of document types (photo, signature, PAN, Aadhaar, other ID proof)
+  — see Phase 6 in PLAN.md — but not marksheets/other types, and not PDF
+  uploads (the vault only ever stores images).
 - The image tool scales but doesn't crop, so an exact-aspect-ratio spec (e.g.
   3.5×4.5 cm) needs cropping done elsewhere first.
 - No change-passphrase flow — a backup is tied to the passphrase in force when

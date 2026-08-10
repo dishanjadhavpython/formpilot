@@ -174,5 +174,49 @@ expect('pickDocs returns only the asked-for type', JSON.stringify(Object.keys(pi
 expect('pickDocs keeps the dataUrl for a released type', picked.pan.dataUrl, 'data:image/jpeg;base64,BBBB');
 expect('an empty request yields nothing', Object.keys(M.pickDocs(documents, [])).length, 0);
 
+console.log('\n13. Choice fields infer the right key');
+expect('Gender',              infer('Gender'),              'gender');
+expect('Sex',                 infer('Sex'),                 'gender');
+expect('Category',            infer('Category'),            'category');
+expect('Social Category',     infer('Social Category'),     'category');
+expect('Reservation Category', infer('Reservation Category'), 'category');
+expect('Marital Status',      infer('Marital Status'),      'maritalStatus');
+expect('choice keys are marked choice-only', M.CHOICE_ONLY.has('category'), true);
+expect('ordinary keys are not',              M.CHOICE_ONLY.has('email'),    false);
+
+console.log('\n14. chooseOption picks the right option');
+const gender = [
+  { value: 'M', text: 'Male' },
+  { value: 'F', text: 'Female' },
+  { value: 'T', text: 'Transgender' }
+];
+// The one that matters. 'female'.includes('male') is true, so a substring pass
+// silently ticks Female for a user who stored Male.
+expect('Male does not match Female',   M.chooseOption('Male', gender),   0);
+expect('Female matches Female',        M.chooseOption('Female', gender), 1);
+expect('matching is case-insensitive', M.chooseOption('male', gender),   0);
+expect('the option value works too',   M.chooseOption('T', gender),      2);
+expect('an unknown value picks nothing', M.chooseOption('Unspecified', gender), -1);
+expect('an empty value picks nothing',   M.chooseOption('', gender),      -1);
+
+const category = [
+  { value: 'gen', text: 'General / Unreserved' },
+  { value: 'obc', text: 'OBC' },
+  { value: 'sc',  text: 'SC' },
+  { value: 'st',  text: 'ST' }
+];
+expect('General finds "General / Unreserved"', M.chooseOption('General', category), 0);
+expect('OBC matches exactly',                  M.chooseOption('OBC', category),     1);
+// "SC" is two characters, so the loose pass never runs on it - otherwise it
+// would hit "SC" and "ST" and "General / Unreserved" is not far behind.
+expect('SC matches exactly, not loosely',      M.chooseOption('SC', category),      2);
+expect('ST matches exactly, not loosely',      M.chooseOption('ST', category),      3);
+
+const marital = [{ value: 's', text: 'Single' }, { value: 'm', text: 'Married' }];
+expect('Married is not matched by Marr',  M.chooseOption('Marr', marital),   -1);
+expect('Single matches',                  M.chooseOption('Single', marital),  0);
+expect('no options at all is safe',       M.chooseOption('Single', []),      -1);
+expect('a missing options list is safe',  M.chooseOption('Single'),          -1);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -44,8 +44,8 @@ const MUTATIONS = [
     (s) => s.replace("'password', 'hidden'", "'hidden'")],
 
   ['auto-submits the form after filling', 'content.js',
-    (s) => s.replace('    showToast(filled.length, total, skipped, filledDocs);',
-      '    el.form.submit();\n    showToast(filled.length, total, skipped, filledDocs);')],
+    (s) => s.replace('    showToast(filled.length, grandTotal, skipped, filledDocs);',
+      '    plan[0]?.el?.form?.submit();\n    showToast(filled.length, grandTotal, skipped, filledDocs);')],
 
   ['loses the OCR workerBlobURL override', 'lib/ocr.js',
     (s) => s.replace('workerBlobURL: false', 'workerBlobURL: true')],
@@ -84,6 +84,30 @@ const MUTATIONS = [
   // on into a scripted performance.
   ['turns the demo into a scripted fake', 'demo.js',
     (s) => s.replace('M.inferKey(haystack, dictionary)?.key', 'SCRIPTED[el.id]')],
+
+  // The same lie, told only about the radio groups - which a whole-file grep
+  // for "M.inferKey" would happily keep reporting green.
+  ['fakes only the demo radio matching', 'demo.js',
+    (s) => s.replace('M.chooseOption(value, els.map(radioOption))', 'SCRIPTED_INDEX')],
+
+  // "Checkboxes are just another field, why not fill them too" - which is how
+  // FormPilot ends up ticking "I hereby declare the above to be true".
+  ['starts filling checkboxes', 'content.js',
+    (s) => s.replace("'checkbox', 'radio', 'range', 'color'", "'radio', 'range', 'color'")],
+
+  // The subtle one: reverting the option matcher to a substring pass, which
+  // ticks Female for a user who stored Male.
+  ['makes option matching a substring test again', 'lib/match.js',
+    (s) => s.replace(
+      'if (boundary.test(String(option?.text ?? \'\').trim().toLowerCase())) return i;',
+      'if (String(option?.text ?? \'\').trim().toLowerCase().includes(want)) return i;')],
+
+  // "category is a normal field, why restrict it" - and now a text box labelled
+  // "Job Category" gets "OBC" typed into it.
+  ['lets a choice-only key fill a free-text box', 'content.js',
+    (s) => s.replace(
+      "if (M.CHOICE_ONLY.has(key) && el.tagName.toLowerCase() !== 'select') {",
+      'if (false) {')],
 
   // "The demo would be more convincing with the user's actual details in it."
   ['lets the demo read the unlocked vault', 'demo.js',
