@@ -149,6 +149,51 @@ exist for part of the audience.
 
 ---
 
+## 5b. The brand mesh
+
+The onboarding identity: an indigo → periwinkle → lilac wash, a smoked-glass
+feature panel, vivid icon chips, and a **near-black** call to action. It lives on
+`welcome.html` and as the popup's header bar.
+
+**The mesh is decoration and is never trusted for legibility.** White body copy
+on the lilac stop measures **2.19:1**. The reference design this came from does
+exactly that, and it is the one thing not to copy — it is a lovely mockup that
+would fail an audit on its own screenshot. Rather than dull the gradient until
+text survives on it (which loses the whole character), the mesh stays as bright
+as it likes and everything readable moves onto one of two layers:
+
+| Layer | What sits on it | Worst measured |
+|---|---|---|
+| `--brand-panel` — smoked glass, `rgba(20,18,45,0.55)` | feature rows | 6.85:1 |
+| `--brand-scrim` — top-down darkening | the headline | 5.06:1 |
+
+Both are computed against the *brightest* stop, so nothing depends on where a
+radial happens to land at a viewport size nobody tested.
+
+Two values are load-bearing rather than aesthetic, and the test will tell you if
+you move them: the panel's `0.55` alpha, and the scrim's `0.40` mid-band — at
+`0.28` the headline measured 3.85:1.
+
+**Frost dark, not light.** Whitening a bright mesh lightens the very thing the
+text has to survive. Smoking it is both prettier and legible.
+
+**The CTA is near-black.** An accent-blue button on an indigo mesh is blue on
+blue. `--brand-cta` separates completely and reads as the one thing on the card
+you are meant to press. On neutral surfaces the primary action stays `--accent`
+as before — the black button is a *brand-surface* rule, not a global one.
+
+**Icon chips carry their own ink.** Blue, violet and green take a white glyph;
+amber, rose and teal are inherently light hues and cannot — white on `#FFC95F`
+is 1.76:1, and deepening amber until white worked turned it to mud. So
+`--chip-*` and `--chip-*-ink` are set by one class together, and the chips stay
+vivid. The chips remain the only place these hues appear.
+
+**Reduced transparency is honoured.** `prefers-reduced-transparency: reduce`
+drops every blur and makes the panel solid without changing the layout, and a
+`forced-colors` block keeps the card's structure once the mesh is discarded.
+
+---
+
 ## 6. Do / Don't
 
 **Do:** anchor the primary action to the bottom floating pill • use large radii + generous spacing

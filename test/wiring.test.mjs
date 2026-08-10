@@ -154,5 +154,42 @@ console.log('\n6. Every class toggled from JS has a rule somewhere');
   ok('no class is toggled without a rule', orphans.length === 0, orphans.join(', '));
 }
 
+// ============================================================================
+console.log('\n7. Every page has a main landmark');
+// ============================================================================
+//
+// Without one, a screen reader has no "jump to the content" target and the whole
+// page is one undifferentiated region. The vault page is eight sections deep, so
+// it also gets a skip link — otherwise reaching Settings by keyboard means
+// tabbing through every field in the vault, the image tool and the OCR panel.
+
+for (const page of PAGES.map((p) => p.html)) {
+  const html = read(page);
+  ok(`${page} has exactly one <main>`, (html.match(/<main[\s>]/g) ?? []).length === 1,
+    `${(html.match(/<main[\s>]/g) ?? []).length} found`);
+}
+
+{
+  const html = read('options.html');
+  const target = /<a class="skip-link" href="#([^"]+)"/.exec(html)?.[1];
+  ok('options.html has a skip link', Boolean(target), String(target));
+  ok('it points at the main landmark',
+    target && new RegExp(`<main id="${target}"`).test(html),
+    'a skip link to nothing is worse than none');
+  ok('the target can receive focus', /<main[^>]+tabindex="-1"/.test(html),
+    'without tabindex the jump moves the scroll but not the focus');
+}
+
+// A page whose every heading is an <h2> reads as a flat list; one that skips
+// from h1 to h3 reads as a missing section.
+for (const page of PAGES.map((p) => p.html)) {
+  const levels = [...read(page).matchAll(/<h([1-6])[\s>]/g)].map((m) => +m[1]);
+  ok(`${page} starts at h1`, levels[0] === 1, `first heading is h${levels[0]}`);
+
+  const jumps = levels.filter((level, i) => i > 0 && level > levels[i - 1] + 1);
+  ok(`${page} skips no heading level`, jumps.length === 0,
+    jumps.length ? `jumps to h${jumps[0]}` : `${levels.length} headings`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

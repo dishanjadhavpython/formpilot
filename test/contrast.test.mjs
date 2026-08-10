@@ -165,7 +165,10 @@ for (const [theme, tokens] of [['light', light], ['dark', dark]]) {
 console.log('\n4. The focus rule itself');
 
 {
-  const rule = /:focus-visible\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  // The BASE rule, anchored at line start. Unanchored, this matched
+  // `.skip-link:focus-visible` the moment one was added and quietly started
+  // asserting things about the wrong selector.
+  const rule = /^:focus-visible\s*\{([^}]*)\}/m.exec(css)?.[1] ?? '';
   ok('a focus rule exists', rule.length > 0);
   ok('it does not suppress the outline', !/outline:\s*none/.test(rule),
     'outline:none with only a soft glow left keyboard focus invisible');
@@ -210,6 +213,92 @@ console.log('\n5. The three hard-coded copies of the accent still match');
 
   const badge = sources['background.js'].match(/setBadgeBackgroundColor\([^)]*color:\s*'(#[0-9a-fA-F]{6})'/)?.[1]?.toUpperCase();
   ok('the toolbar badge matches --accent', badge === accent, `${badge} vs ${accent}`);
+}
+
+// ============================================================================
+console.log('\n6. The brand mesh is decoration, and nothing readable trusts it');
+// ============================================================================
+//
+// The reference this was drawn from puts white body copy straight onto a lilac
+// gradient stop. Measured, that is 2.19:1 — a beautiful mockup that would fail
+// an audit on its own screenshot. The mesh is kept exactly as bright, and every
+// readable thing is moved onto a layer dark enough to carry white over ANY stop,
+// so the design does not depend on where a radial happens to land at some
+// viewport size nobody tested.
+
+{
+  const stops = ['--brand-1', '--brand-2', '--brand-3', '--brand-4']
+    .map((name) => [name, light.get(name)]);
+
+  ok('all four mesh stops are defined', stops.every(([, c]) => c), stops.map(([n]) => n).join(' '));
+
+  // The honest baseline: at least one stop must be too light for white text.
+  // If that ever stops being true the mesh has been dulled into a flat ground,
+  // and the scrim and panel below are solving a problem that no longer exists.
+  const barest = Math.min(...stops.map(([, c]) => contrast(light.get('--brand-ink'), c)));
+  console.log(`        (white directly on the lightest stop: ${barest.toFixed(2)}:1 — which is why nothing sits there)`);
+
+  const panel = light.get('--brand-panel');
+  ok('--brand-panel is translucent and dark', panel && panel[3] < 1 && luminance(panel) < 0.2,
+    panel ? `alpha ${panel[3]}` : 'missing');
+
+  for (const [name, stop] of stops) {
+    // Panel text: the feature rows.
+    const onPanel = contrast(light.get('--brand-ink'), over(panel, stop));
+    ok(`white on the panel over ${name}`, onPanel >= TEXT_MIN, `${onPanel.toFixed(2)}:1`);
+
+    // Secondary ink: the descriptions under each feature title.
+    const secondary = contrast(light.get('--brand-ink-2'), over(panel, stop));
+    ok(`secondary ink on the panel over ${name}`, secondary >= TEXT_MIN, `${secondary.toFixed(2)}:1`);
+  }
+
+  // The headline sits under the scrim rather than on the panel. Take the scrim's
+  // WEAKEST band — the point furthest down the card, where it has almost faded —
+  // because that is the worst case for anything still sitting on it.
+  const scrimStops = /--brand-scrim:[\s\S]*?;/.exec(css)?.[0] ?? '';
+  const alphas = [...scrimStops.matchAll(/rgba\(12,10,40,([\d.]+)\)/g)].map((m) => +m[1]);
+  ok('the scrim was parsed', alphas.length >= 3, alphas.join(', '));
+
+  // The headline occupies the top ~40% of the card, so it is covered by the
+  // first two bands. The third and fourth exist only to fade the scrim out.
+  const headlineAlpha = Math.min(alphas[0], alphas[1]);
+  for (const [name, stop] of stops) {
+    const scrimmed = over([12, 10, 40, headlineAlpha], stop);
+    const r = contrast(light.get('--brand-ink'), scrimmed);
+    ok(`headline over the scrim on ${name}`, r >= TEXT_MIN, `${r.toFixed(2)}:1`);
+  }
+
+  // The near-black call to action, which is the reference's most distinctive
+  // borrowed element and the only button on the card.
+  const cta = contrast(light.get('--on-brand-cta'), light.get('--brand-cta'));
+  ok('the CTA label on near-black', cta >= TEXT_MIN, `${cta.toFixed(2)}:1`);
+  ok('the CTA is not the accent',
+    JSON.stringify(light.get('--brand-cta')) !== JSON.stringify(light.get('--accent')),
+    'accent-on-indigo is blue on blue; the reference reaches for black and is right');
+}
+
+// ============================================================================
+console.log('\n7. Icon chips carry their own ink');
+// ============================================================================
+//
+// Amber, rose and teal are inherently light hues: a white glyph on #FFC95F is
+// 1.76:1, and deepening them until white worked turned amber into mud. So each
+// chip declares the ink that suits it. This checks nobody has since paired a
+// pale fill with a white glyph.
+
+for (const hue of ['blue', 'violet', 'green', 'teal', 'amber', 'rose']) {
+  const gradient = new RegExp(`--chip-${hue}:linear-gradient\\([^,]+,([^,]+),([^)]+)\\)`).exec(css);
+  const ink = parse(new RegExp(`--chip-${hue}-ink:(#[0-9a-fA-F]{6})`).exec(css)?.[1] ?? '');
+
+  if (!gradient || !ink) { ok(`--chip-${hue} is defined`, false, 'missing'); continue; }
+
+  const worst = Math.min(...[gradient[1], gradient[2]]
+    .map((stop) => contrast(ink, parse(stop.trim()))));
+
+  // Icons here are decorative (aria-hidden, with a text label beside them), so
+  // the bar is the non-text 3:1 rather than 4.5:1 — but invisible is still
+  // invisible, and a chip whose glyph vanishes looks broken rather than subtle.
+  ok(`--chip-${hue} glyph is visible on both stops`, worst >= NON_TEXT_MIN, `${worst.toFixed(2)}:1`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

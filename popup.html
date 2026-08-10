@@ -14,19 +14,32 @@
       flex-direction: column;
       padding: 0 var(--s5) var(--s3);
     }
-    .popup-head {
-      display: flex;
-      align-items: center;
-      gap: var(--s3);
-      padding: var(--s3) 0 var(--s1);
+    /* Full-bleed: the body has side padding, so pull the bar back out to the
+       window edges or the mesh reads as a floating chip rather than a header. */
+    .brand-bar {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      margin: 0 calc(var(--s5) * -1) var(--s3);
+      padding: var(--s4) var(--s5) var(--s3);
+      color: var(--brand-ink);
+      border-radius: 0 0 var(--r-lg) var(--r-lg);
     }
-    .popup-head img { width: 30px; height: 30px; border-radius: var(--r-sm); }
-    .popup-head h1 { font: var(--t-title); letter-spacing: -0.02em; }
+    .brand-bar__row { display: flex; align-items: center; gap: var(--s3); }
+    .brand-bar img { width: 28px; height: 28px; border-radius: var(--r-sm); }
+    .brand-bar h1 { font: var(--t-title); letter-spacing: -0.02em; }
+    /* The badge sits on the mesh, so it cannot use the neutral surface tokens. */
+    .brand-bar .badge {
+      background: rgb(0 0 0 / 0.32);
+      color: var(--brand-ink);
+      border: 1px solid var(--brand-border);
+    }
+    .brand-bar .badge.unlocked { background: rgb(255 255 255 / 0.22); color: var(--brand-ink); }
     .site {
       font: var(--t-caption);
-      color: var(--text-3);
+      color: var(--brand-ink-2);
       word-break: break-all;
-      margin-bottom: var(--s2);
+      margin-top: var(--s1);
     }
     .popup-body { flex: 1; display: flex; flex-direction: column; gap: var(--s2); }
     .bottom-bar { margin-top: var(--s2); }
@@ -60,14 +73,21 @@
     </filter>
   </svg>
 
-  <header class="popup-head">
-    <img src="icons/icon48.png" alt="">
-    <h1>FormPilot</h1>
-    <span id="lockBadge" class="badge u-push">Locked</span>
+  <!-- The identity moment. The popup is the surface people actually see, so the
+       mesh lives here rather than only on a welcome page seen once. Text sits
+       on the scrim, never on the bare mesh. -->
+  <header class="brand-bar">
+    <div class="brand-card__mesh" aria-hidden="true"></div>
+    <div class="brand-card__scrim" aria-hidden="true"></div>
+    <div class="brand-bar__row">
+      <img src="icons/icon48.png" alt="">
+      <h1>FormPilot</h1>
+      <span id="lockBadge" class="badge u-push">Locked</span>
+    </div>
+    <p class="site" id="site"></p>
   </header>
-  <p class="site" id="site"></p>
 
-  <div class="popup-body">
+  <main class="popup-body">
     <p class="locked-note hidden" id="lockedNote">
       Unlock the vault to fill forms.
     </p>
@@ -113,7 +133,7 @@
         <span class="tile__desc">Auto-lock &amp; fill highlighting</span>
       </button>
     </div>
-  </div>
+  </main>
 
   <!-- Primary action, within thumb reach. -->
   <div class="bottom-bar lg lg--refract">

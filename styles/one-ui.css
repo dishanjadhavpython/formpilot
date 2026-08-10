@@ -63,8 +63,65 @@
   --card-border:rgba(255,255,255,0.7);
   --blur:blur(20px) saturate(180%);
 
-  /* Icon-chip hues. Used ONLY behind feature icons — body text and controls
-     stay on the single accent, so the interface still reads as one system. */
+  /* ---- Brand mesh -------------------------------------------------------
+     The indigo → periwinkle → lilac wash. It is DECORATION, never a ground
+     for text: white body copy on the lilac stop measures 2.19:1, and no
+     amount of font weight fixes that. Everything readable sits on
+     --brand-panel or under --brand-scrim below, both of which are dark
+     enough to carry white over *any* stop — so the mesh can stay as bright
+     as it wants and nothing depends on where a radial happens to land. */
+  --brand-1:#3E3FB4;    /* deep indigo   */
+  --brand-2:#6E72D6;    /* periwinkle    */
+  --brand-3:#B7A6E4;    /* lilac         */
+  --brand-4:#5A7FC7;    /* steel blue    */
+
+  --brand-ink:#FFFFFF;
+  --brand-ink-2:rgba(255,255,255,0.82);
+  --brand-ink-3:rgba(255,255,255,0.62);   /* eyebrow only — never body copy */
+
+  /* Smoked glass, not milky. Frosting a bright mesh with WHITE lightens the
+     very thing the text has to survive; darkening it is what makes the panel
+     both prettier and legible. */
+  --brand-panel:rgba(20,18,45,0.55);
+  --brand-panel-line:rgba(255,255,255,0.14);
+  --brand-border:rgba(255,255,255,0.22);
+
+  /* Behind the headline, so it never has to trust the mesh underneath. */
+     The 0.40 mid-band is not a taste decision: it is the weakest the scrim can
+     be and still carry white over the LILAC stop, which is the brightest thing
+     the mesh can put under a headline. At 0.28 it measured 3.85:1. */
+  --brand-scrim:linear-gradient(180deg, rgba(12,10,40,0.62) 0%,
+                                        rgba(12,10,40,0.40) 52%,
+                                        rgba(12,10,40,0.10) 80%,
+                                        transparent 100%);
+
+  /* On a mesh this saturated, an accent-blue button is blue on blue. The
+     reference reaches for near-black and it is the right call: it separates
+     completely, and it reads as the one thing on the card you are meant to
+     press. */
+  --brand-cta:#141416;
+  --brand-cta-press:#2C2C31;
+  --on-brand-cta:#FFFFFF;
+
+  /* ---- Icon chips -------------------------------------------------------
+     Filled and saturated, as in the reference, rather than a pale tint behind
+     a coloured glyph. Each chip carries its OWN ink, and that is the point:
+     blue, violet and green take a white glyph, but amber, rose and teal are
+     inherently light hues and cannot carry white at any saturation worth
+     having — #FFC95F with a white glyph is 1.76:1. Deepening them until white
+     worked turned amber into mud. So the ink follows the chip; the chips stay
+     vivid. Every pair clears 3:1 on both stops, checked by the contrast test.
+
+     The chips remain the ONLY place these hues appear. Body text and controls
+     stay on the single accent, so the interface reads as one system. */
+  --chip-blue:linear-gradient(160deg,#5692F0,#2C6FE8);   --chip-blue-ink:#FFFFFF;
+  --chip-violet:linear-gradient(160deg,#AF79E6,#8B3FE8); --chip-violet-ink:#FFFFFF;
+  --chip-green:linear-gradient(160deg,#2FA05F,#12854D);  --chip-green-ink:#FFFFFF;
+  --chip-teal:linear-gradient(160deg,#4FE0E0,#12BFBF);   --chip-teal-ink:#141416;
+  --chip-amber:linear-gradient(160deg,#FFC95F,#F0A020);  --chip-amber-ink:#141416;
+  --chip-rose:linear-gradient(160deg,#FFA8C6,#F06D9E);   --chip-rose-ink:#141416;
+
+  /* Icon-chip hues, kept for anything still tinting rather than filling. */
   --hue-blue:#1968E4;   --hue-blue-soft:rgba(25,104,228,0.12);
   --hue-violet:#7C5CE6; --hue-violet-soft:rgba(124,92,230,0.12);
   --hue-teal:#0FA3A3;   --hue-teal-soft:rgba(15,163,163,0.12);
@@ -147,6 +204,30 @@ code {
 }
 
 .hidden { display: none !important; }
+
+/* The vault page is eight sections deep. Without this, reaching Settings by
+   keyboard means tabbing past every field in the vault, the image tool and the
+   OCR panel first. Hidden until focused, which is the whole convention. */
+.skip-link {
+  position: absolute;
+  left: var(--s4);
+  top: var(--s4);
+  z-index: 100;
+  padding: var(--s3) var(--s5);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow);
+  font: var(--t-label);
+  font-weight: 600;
+  transform: translateY(-200%);
+  transition: transform var(--dur) var(--ease);
+}
+.skip-link:focus-visible { transform: translateY(0); }
+
+/* A landmark that is only a scroll target should not announce itself as
+   clickable, but it does need to be able to receive focus from the skip link. */
+main:focus { outline: none; }
 
 /* Focus is always visible, and always the same shape.
  *
@@ -731,6 +812,176 @@ input[type="file"]::file-selector-button {
 .crop__controls label { font: var(--t-caption); color: var(--text-2); flex: 0 0 auto; }
 .crop__controls input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
 
+/* ---------- 20. Brand surface ------------------------------------------- */
+/*
+ * The onboarding look: an indigo→lilac mesh, smoked-glass feature panel, vivid
+ * icon chips, near-black call to action.
+ *
+ * Layering, and the order matters:
+ *   __mesh   the decorative wash. Bright, and never trusted for legibility.
+ *   __scrim  a top-down darkening behind the headline.
+ *   __body   everything readable, either on the scrim or on .brand-panel.
+ */
+
+.brand-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  background: var(--brand-1);          /* the floor, if the mesh cannot paint */
+  color: var(--brand-ink);
+  box-shadow: var(--shadow);
+}
+
+.brand-card__mesh,
+.brand-card__scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Four overlapping radials rather than one linear ramp: a linear gradient reads
+   as a backdrop, a mesh reads as a material. The lilac is deliberately parked
+   bottom-right, away from the headline. */
+.brand-card__mesh {
+  z-index: -2;
+  background:
+    radial-gradient(120% 90% at 8% 4%,    var(--brand-1) 0%, transparent 62%),
+    radial-gradient(100% 80% at 92% 22%,  var(--brand-4) 0%, transparent 58%),
+    radial-gradient(120% 100% at 88% 96%, var(--brand-3) 0%, transparent 60%),
+    linear-gradient(150deg, var(--brand-1) 0%, var(--brand-2) 52%, var(--brand-3) 100%);
+}
+
+.brand-card__scrim { z-index: -1; background: var(--brand-scrim); }
+
+.brand-card__body {
+  position: relative;
+  padding: var(--s8) var(--s6) var(--s6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.brand-eyebrow {
+  font: var(--t-caption);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--brand-ink-3);
+}
+
+.brand-title {
+  font: var(--t-display);
+  font-size: clamp(26px, 6vw, 34px);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  color: var(--brand-ink);
+}
+
+.brand-lede { font: var(--t-body); color: var(--brand-ink-2); max-width: 46ch; }
+
+/* Smoked glass. One container, hairline-separated rows — the reference groups
+   the features rather than floating three separate cards, which keeps the eye
+   moving down one column. */
+.brand-panel {
+  background: var(--brand-panel);
+  border: 1px solid var(--brand-border);
+  border-radius: var(--r-lg);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  overflow: hidden;
+}
+
+.brand-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s4);
+  padding: var(--s4);
+}
+.brand-row + .brand-row { border-top: 1px solid var(--brand-panel-line); }
+.brand-row__text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.brand-row__text b { font: var(--t-label); font-weight: 650; color: var(--brand-ink); }
+.brand-row__text span { font: var(--t-caption); color: var(--brand-ink-2); }
+
+.brand-chip {
+  flex: 0 0 auto;
+  width: 34px; height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: #FFFFFF;                       /* glyph, on a saturated chip */
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28);
+}
+.brand-chip svg { width: 19px; height: 19px; }
+.brand-chip--blue   { background: linear-gradient(160deg, #5B9BFF, #2C6FE8); }
+.brand-chip--green  { background: linear-gradient(160deg, #3DDC84, #14A45A); }
+.brand-chip--violet { background: linear-gradient(160deg, #C084FC, #8B3FE8); }
+
+/* The one thing on the card you are meant to press. Near-black, because an
+   accent-blue button on an indigo mesh is blue on blue. */
+.brand-cta {
+  width: 100%;
+  min-height: var(--control-h);
+  background: var(--brand-cta);
+  color: var(--on-brand-cta);
+  border-radius: var(--r-pill);
+  font: var(--t-label);
+  font-weight: 650;
+}
+.brand-cta:hover  { background: var(--brand-cta-press); }
+.brand-cta:active { background: var(--brand-cta-press); transform: scale(0.97); }
+
+.brand-ghost {
+  width: 100%;
+  min-height: var(--control-h-sm);
+  background: transparent;
+  color: var(--brand-ink);
+  border: 1px solid var(--brand-border);
+  border-radius: var(--r-pill);
+  font: var(--t-label);
+  font-weight: 600;
+}
+.brand-ghost:hover { background: rgb(255 255 255 / 0.10); }
+
+.brand-actions { display: flex; flex-direction: column; gap: var(--s3); }
+
+/* A warning is the one thing here that must not read as decoration. */
+.brand-note {
+  background: rgb(0 0 0 / 0.28);
+  border: 1px solid var(--brand-border);
+  border-left: 3px solid #FFD166;
+  border-radius: var(--r-md);
+  padding: var(--s4);
+  font: var(--t-caption);
+  color: var(--brand-ink);
+}
+
+/* Focus has to survive on a dark, busy ground, where the accent ring does not
+   read. White, with a dark inner separator so it works over any stop. */
+.brand-card :focus-visible {
+  outline: 3px solid #FFFFFF;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgb(0 0 0 / 0.45);
+}
+
+/* Some people get motion sick from, or simply cannot parse, translucent layers
+   over busy artwork — and macOS/iOS and Windows both expose the preference.
+   Drop the blur and make every surface solid; the layout does not change. */
+@media (prefers-reduced-transparency: reduce) {
+  .brand-card__mesh { background: var(--brand-1); }
+  .brand-panel { backdrop-filter: none; -webkit-backdrop-filter: none; background: #1A1840; }
+  .brand-note { background: #1A1840; }
+}
+
+/* Forced colours discards the mesh entirely; make sure the card still has
+   structure rather than becoming one undifferentiated block. */
+@media (forced-colors: active) {
+  .brand-panel, .brand-note, .brand-ghost { border: 1px solid CanvasText; }
+  .brand-chip { border: 1px solid CanvasText; }
+}
+
 /* The 460px column is deliberate everywhere else — it is what makes the options
    page read as one calm screen rather than a settings sprawl. But two sections
    are tools rather than forms: you aim a crop rectangle inside one and read
@@ -829,20 +1080,25 @@ table.maps td:last-child { width: 1%; white-space: nowrap; }
   justify-content: center;
   width: 30px; height: 30px;
   margin-bottom: var(--s1);
-  border-radius: var(--r-sm);
-  background: var(--tile-soft, var(--accent-soft));
-  color: var(--tile-hue, var(--accent));
+  border-radius: 10px;
+  /* Filled and saturated, per the reference — the pale-tint-behind-a-coloured-
+     glyph version read as a placeholder next to it. */
+  background: var(--chip-bg, var(--chip-blue));
+  color: var(--chip-ink, #FFFFFF);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28);
 }
 .tile__icon svg { width: 18px; height: 18px; }
 .tile__name { font: var(--t-label); font-weight: 600; font-size: 13.5px; color: var(--text); }
 .tile__desc { font: var(--t-caption); font-size: 11.5px; color: var(--text-2); line-height: 1.3; }
 
-.tile--blue   { --tile-hue: var(--hue-blue);   --tile-soft: var(--hue-blue-soft); }
-.tile--violet { --tile-hue: var(--hue-violet); --tile-soft: var(--hue-violet-soft); }
-.tile--teal   { --tile-hue: var(--hue-teal);   --tile-soft: var(--hue-teal-soft); }
-.tile--amber  { --tile-hue: var(--hue-amber);  --tile-soft: var(--hue-amber-soft); }
-.tile--rose   { --tile-hue: var(--hue-rose);   --tile-soft: var(--hue-rose-soft); }
-.tile--green  { --tile-hue: var(--hue-green);  --tile-soft: var(--hue-green-soft); }
+/* One class sets both the fill and its ink, so the two cannot be mixed up —
+   a violet chip with amber's near-black glyph would be unreadable. */
+.tile--blue,   .sec-icon.tile--blue   { --chip-bg: var(--chip-blue);   --chip-ink: var(--chip-blue-ink); }
+.tile--violet, .sec-icon.tile--violet { --chip-bg: var(--chip-violet); --chip-ink: var(--chip-violet-ink); }
+.tile--teal,   .sec-icon.tile--teal   { --chip-bg: var(--chip-teal);   --chip-ink: var(--chip-teal-ink); }
+.tile--amber,  .sec-icon.tile--amber  { --chip-bg: var(--chip-amber);  --chip-ink: var(--chip-amber-ink); }
+.tile--rose,   .sec-icon.tile--rose   { --chip-bg: var(--chip-rose);   --chip-ink: var(--chip-rose-ink); }
+.tile--green,  .sec-icon.tile--green  { --chip-bg: var(--chip-green);  --chip-ink: var(--chip-green-ink); }
 
 .tiles .tile:nth-child(1) { animation-delay: 40ms; }
 .tiles .tile:nth-child(2) { animation-delay: 80ms; }
@@ -858,9 +1114,10 @@ table.maps td:last-child { width: 1%; white-space: nowrap; }
   justify-content: center;
   width: 28px; height: 28px;
   flex: 0 0 auto;
-  border-radius: var(--r-sm);
-  background: var(--tile-soft, var(--accent-soft));
-  color: var(--tile-hue, var(--accent));
+  border-radius: 9px;
+  background: var(--chip-bg, var(--chip-blue));
+  color: var(--chip-ink, #FFFFFF);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28);
 }
 .sec-icon svg { width: 17px; height: 17px; }
 
