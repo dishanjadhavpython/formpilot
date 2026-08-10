@@ -69,6 +69,11 @@ diff -r . ~/path/to/profile/Extensions/<extension-id>/<version>/ \
 
 Expect no output. Any difference at all is one worth asking about.
 
+The store package is built the same way and is **reproducible** — every
+timestamp is pinned, so `npm run package` on the same source produces a
+byte-identical ZIP. That is what makes the published release hash meaningful
+rather than decorative.
+
 ---
 
 ## Features

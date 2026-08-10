@@ -12,6 +12,7 @@ npm-debug.log*
 
 # Packaged extension + signing key. NEVER commit the .pem - it is the private
 # key that identifies this extension in the Chrome Web Store.
+dist/
 *.zip
 *.crx
 *.pem

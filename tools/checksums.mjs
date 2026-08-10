@@ -21,34 +21,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-
-// Everything NOT in this list ships, which is the safe way round: a new file
-// added to the extension is fingerprinted automatically, whereas an allowlist
-// would silently leave it unverified. These are the things Chrome never sees.
-const NOT_SHIPPED = new Set([
-  '.git', '.github', '.idea', 'node_modules', 'test', 'tools', 'dist',
-  '.gitignore', 'package.json', 'package-lock.json',
-  'CLAUDE.md', 'PLAN.md', 'OVERVIEW.md', 'DESIGN.md', 'README.md',
-  'SECURITY.md', 'PRIVACY.md', 'run.md', 'FormPilot_Build_Guide.pdf'
-]);
-
-function walk(dir, base = '') {
-  const out = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-    const rel = base ? `${base}/${entry.name}` : entry.name;
-    if (NOT_SHIPPED.has(rel) || NOT_SHIPPED.has(entry.name)) continue;
-    if (entry.isDirectory()) out.push(...walk(path.join(dir, entry.name), rel));
-    else out.push(rel);
-  }
-  return out;
-}
+import { ROOT, shippedFiles, manifest as readManifest } from './shipped.mjs';
 
 const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
 
-const files = walk(ROOT).sort();
+const files = shippedFiles();
 const lines = files.map((rel) => `${sha256(fs.readFileSync(path.join(ROOT, rel)))}  ${rel}`);
 
 // One hash over the whole list, so a release can be quoted as a single string.
@@ -58,8 +35,7 @@ const aggregate = sha256(Buffer.from(lines.join('\n'), 'utf8'));
 
 const quiet = process.argv.includes('--quiet');
 if (!quiet) {
-  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
-  console.log(`FormPilot ${manifest.version} — ${files.length} shipped files\n`);
+  console.log(`FormPilot ${readManifest().version} — ${files.length} shipped files\n`);
   console.log(lines.join('\n'));
   console.log('');
 }

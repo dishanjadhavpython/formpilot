@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FormPilot — 440×280 promo tile</title>
+  <link rel="stylesheet" href="../styles/one-ui.css">
+  <style>
+    /* Tokens only, per DESIGN.md — this is a marketing asset, not a licence to
+       invent a second palette. */
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--s6);
+      background: var(--bg);
+      padding: var(--s6);
+    }
+
+    /* Exactly the size Chrome wants. Do not scale this afterwards. */
+    #tile {
+      width: 440px;
+      height: 280px;
+      flex: 0 0 auto;
+      background: var(--accent);
+      color: var(--on-accent);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: var(--s2);
+      padding: 0 36px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* One soft highlight so a flat fill does not read as a placeholder. */
+    #tile::before {
+      content: "";
+      position: absolute;
+      inset: -40% -30% auto auto;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgb(255 255 255 / 0.16), transparent 68%);
+      pointer-events: none;
+    }
+
+    #tile > * { position: relative; }
+
+    .brand {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      opacity: 0.85;
+    }
+
+    .headline {
+      font-size: 42px;
+      font-weight: 800;
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .headline .arrow { font-size: 30px; opacity: 0.7; font-weight: 500; }
+
+    .band {
+      font-size: 15px;
+      line-height: 1.35;
+      opacity: 0.92;
+      max-width: 330px;
+    }
+    .band b { font-weight: 700; }
+
+    .foot {
+      margin-top: 10px;
+      font-size: 13px;
+      opacity: 0.8;
+      letter-spacing: 0.01em;
+    }
+
+    /* Everything below is capture guidance and must not end up in the image. */
+    .guide {
+      max-width: 460px;
+      font: var(--t-caption);
+      color: var(--text-2);
+      line-height: 1.55;
+    }
+    .guide h1 { font: var(--t-title); color: var(--text); margin: 0 0 var(--s2); }
+    .guide code {
+      background: var(--surface-2);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .guide ol { margin: var(--s2) 0 0; padding-left: 1.2em; }
+    .guide li { margin-bottom: var(--s1); }
+  </style>
+</head>
+<body>
+
+  <div id="tile">
+    <span class="brand">FormPilot</span>
+    <span class="headline">4.2&nbsp;MB <span class="arrow">→</span> 47&nbsp;KB</span>
+    <span class="band">Inside the <b>20–50&nbsp;KB</b> the portal demanded — not merely under the maximum.</span>
+    <span class="foot">Offline form filler &amp; photo resizer</span>
+  </div>
+
+  <div class="guide">
+    <h1>Capturing this</h1>
+    <p>The box above is exactly 440×280, the size Chrome wants. Capture the
+    element itself rather than a region, so nothing on this page bleeds in and
+    no scaling softens the type:</p>
+    <ol>
+      <li>Right-click the tile → <b>Inspect</b>.</li>
+      <li>In the Elements panel, right-click the <code>&lt;div id="tile"&gt;</code>
+      node → <b>Capture node screenshot</b>.</li>
+      <li>Confirm the saved PNG is 440×280 and upload it as-is.</li>
+    </ol>
+    <p>The number is illustrative, so keep it honest: run a real photo through
+    the image tool first and use whatever it actually produces.</p>
+  </div>
+
+</body>
+</html>

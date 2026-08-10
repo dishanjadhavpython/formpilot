@@ -183,7 +183,10 @@ options.html / .js     vault, image tool, OCR, mappings, backup, settings
 welcome.html / .js     first run — opened once, on install
 demo.html / .js        try-it sample form — real matcher, fake person, no vault
 content.js             injected on demand — detection, chip UI, filling
-tools/checksums.mjs    fingerprints every shipped file (release verification)
+tools/  shipped.mjs    the single answer to "which files does the browser get"
+        checksums.mjs  fingerprints every shipped file (release verification)
+        package.mjs    builds the reproducible store ZIP (npm run package)
+store/                 listing copy, permission justifications, launch checklist
 lib/
   crypto.js            PBKDF2 + AES-256-GCM
   match.js             field inference, synonyms, what's safe to expose

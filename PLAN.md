@@ -17,7 +17,7 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 | 6 | Document (file-upload) autofill | ✅ done |
 | 7 | Shippable: licence, privacy policy, permission diet, CI | ✅ done |
 | 8 | Earn trust in the first ninety seconds | ✅ done |
-| 9 | Launch on the Chrome Web Store and Edge Add-ons | planned |
+| 9 | Launch on the Chrome Web Store and Edge Add-ons | 🟡 prepared — submission pending |
 | 10 | Win the market it was built for | planned |
 | 11 | Distribution | ongoing |
 
@@ -343,6 +343,64 @@ before typing a single real detail — and can prove the code they installed
 matches the code they read. ✅
 
 **Deferred:** nothing from this phase. The store listing itself is Phase 9.
+
+## Phase 9 — Launch 🟡
+
+Everything that can live in the repository does. The rest needs an account, a
+card and a browser, and is checklisted rather than done — see
+[store/CHECKLIST.md](store/CHECKLIST.md).
+
+**A packaging tool** (`tools/package.mjs`, `npm run package`) with a
+hand-rolled ZIP writer. Two constraints met at once: no npm dependencies, so no
+archiver library; and a release that can be *verified*, which means the archive
+has to be reproducible. Shelling out to `zip` gives neither — it stamps the
+local mtime into every entry, so two builds of identical code differ and the
+published hash proves nothing. Pinning every timestamp to the ZIP epoch makes
+the output a pure function of file contents and names. Verified: two builds are
+byte-identical, and the extracted archive is byte-for-byte the source tree, 31
+files, nothing missing and nothing extra.
+
+`tools/shipped.mjs` now owns the single answer to "which files does the browser
+get", because the checksums tool and the packager both need it and two copies
+would drift in opposite directions — a fingerprint list covering a file the
+package omits, or a package carrying a file nobody fingerprinted.
+
+Two deliberate inclusions in the package, both licence obligations rather than
+preferences: `LICENSE` (MIT requires the notice in "all copies", and a shipped
+extension is a copy) and the `vendor/` licences alongside the code they cover.
+
+**A package test suite** (`test/package.test.mjs`, 20 assertions). Store review
+is slow and a rejection costs days, but the worse failure is the one that
+*passes* review: a package missing a stylesheet installs fine, loads, and is
+broken for every user until the next release clears the queue. So it checks
+that every manifest-referenced file ships, every script/style/image any HTML
+page pulls in ships, every programmatically injected path ships (`content.js`
+and `lib/match.js` are named nowhere in the manifest), and every OCR asset
+ships — that last one because a missing one does not crash, it silently
+restores a CDN fetch. Plus the other direction: no `test/`, `tools/`, `store/`
+or docs in the archive.
+
+**Listing material**, all in `store/`: the copy for both stores, per-permission
+review justifications, a five-shot screenshot list, a 440×280 promo tile, and
+the checklist.
+
+The positioning call from the strategy is baked into the copy. FormPilot is not
+"another autofill extension" — framed that way it competes with Chrome's
+built-in autofill and every password manager, and loses, because they sync and
+it deliberately does not. Framed as the tool for Indian exam and government
+portal applications it has no real competitor. The screenshot order follows
+from the same logic: the KB-band resize goes first, not the vault, because a
+vault screenshot looks like every password manager's vault screenshot and gets
+pattern-matched away in a second.
+
+**Done when:** a link exists that installs FormPilot in two clicks on both
+Chrome and Edge.
+
+**Not done here, and it needs you:** the US$5 registration, the GitHub Pages
+deploy for the privacy-policy URL, the five screenshots, the uploads — and,
+before any of it, ten minutes actually driving the extension in a browser. Every
+browser-dependent change in Phases 7 and 8 is verified against stubs, not
+against Chrome. Step 0 of the checklist is that walkthrough.
 
 ---
 

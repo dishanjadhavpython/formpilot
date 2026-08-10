@@ -10,7 +10,8 @@
     "audit": "node test/audit.test.mjs",
     "audit:verify": "node test/audit-mutations.mjs",
     "security": "node test/security.test.mjs",
-    "checksums": "node tools/checksums.mjs"
+    "checksums": "node tools/checksums.mjs",
+    "package": "node tools/package.mjs"
   },
   "dependencies": {},
   "devDependencies": {}
