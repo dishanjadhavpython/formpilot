@@ -1,7 +1,11 @@
 # Store listing copy
 
-Paste-ready text for the Chrome Web Store and Edge Add-ons. Both stores take the
-same package; only the forms around it differ.
+Paste-ready text for Edge Add-ons and the Chrome Web Store. Both take the same
+package; only the forms around them differ.
+
+**Launch on Edge first.** It is free to publish on — Chrome's US$5 is a Chrome
+cost, not an extension cost — so nothing below has to wait on that fee. See
+[CHECKLIST.md](CHECKLIST.md) steps 4 and 5.
 
 **The positioning decision behind all of this:** FormPilot is not "another
 autofill extension". Framed generically it competes with Chrome's built-in
@@ -182,16 +186,26 @@ then confirm the URL loads in a private window. A 404 here is a rejection.
 
 ## Edge Add-ons differences
 
-Same package, same copy. What differs:
+Same package, same copy, and the store to launch on. What differs from the
+Chrome forms described above:
 
-- No developer registration fee.
+- **No developer registration fee at all.** A Microsoft account is the only
+  requirement.
+- Category is **Productivity** (Edge has no "Workflow & Planning").
 - Asks for a **"Why do you need this permission?"** note per permission — reuse
   [permissions.md](permissions.md) verbatim.
 - Wants a **support contact URL**: use the GitHub issues page.
 - Screenshot requirement is 1280×800 or 640×400, same as Chrome, so one set
-  covers both.
-- Review is typically faster than Chrome's, so submit both the same day and
-  expect Edge to go live first.
+  covers both stores.
+- Review is typically faster than Chrome's.
+
+One line worth adding to the Edge description, because Edge users are used to
+being an afterthought:
+
+```
+Works the same on Edge as on any Chromium browser — this is not a port, it is
+the same package.
+```
 
 ---
 

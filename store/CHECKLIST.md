@@ -60,18 +60,53 @@ That claim is only worth making if the hash is actually published.
       in any frame" line, including the OCR shot
 - [ ] Promo tile from [`promo-tile.html`](promo-tile.html), 440×280
 
-## 4 — Chrome Web Store
+## 4 — Edge Add-ons (free — launch here)
 
-- [ ] Register at the [developer dashboard](https://chrome.google.com/webstore/devconsole)
-      — one-time US$5, and it needs a Google account you will still control in
-      five years. Not a college address.
-- [ ] Verify your email and publisher name. The publisher name is what users see
-      under the extension title; it is worth a moment's thought.
-- [ ] New item → upload `dist/formpilot-1.0.0.zip`
+**Microsoft charges no registration fee.** Chrome's US$5 is a Chrome cost, not
+an extension cost, and nothing about it gates this store. Same ZIP, same copy,
+same screenshots, and review is usually faster than Chrome's.
+
+This is a real launch, not a consolation prize. Edge ships as the default
+browser on every Windows machine — including a great many of the budget laptops
+and shared cyber-café machines the exam-portal audience actually uses — and the
+Edge store is far less saturated, so a new extension is genuinely more
+discoverable there than it would be as one of thousands on Chrome.
+
+- [ ] Register at [Partner Center](https://partner.microsoft.com/dashboard/microsoftedge)
+      — free, needs only a Microsoft account
+- [ ] New extension → upload `dist/formpilot-1.0.0.zip`
 - [ ] Paste name, short description and detailed description from
       [`listing.md`](listing.md)
-- [ ] Category **Workflow & Planning**, language **English**
+- [ ] Category **Productivity**, language **English**
 - [ ] Upload the screenshots in the order given, and the promo tile
+- [ ] Per-permission "why do you need this?" notes from
+      [`permissions.md`](permissions.md) — verbatim, especially the
+      `<all_urls>` one
+- [ ] Privacy policy URL from step 1
+- [ ] Support URL: the repository's issues page
+- [ ] Submit
+
+## 5 — Chrome Web Store (US$5, whenever you have it)
+
+The fee is one-time, covers up to 20 extensions forever, and there is no waiver,
+no student programme and no free tier. There is also no consumer-viable way
+around it: Chrome blocks self-hosted `.crx` installs on Windows and macOS, so
+"host it yourself" reaches nobody who is not already in developer mode.
+
+So this step waits. Nothing is lost by waiting, and something is gained:
+arriving at Chrome's stricter review with a live Edge listing, real install
+numbers and a few reviews is a materially better position than arriving with
+nothing.
+
+- [ ] Register at the [developer dashboard](https://chrome.google.com/webstore/devconsole)
+      — US$5, on a Google account you will still control in five years. Not a
+      college address.
+- [ ] Verify your email and publisher name. The publisher name is what users see
+      under the extension title; it is worth a moment's thought.
+- [ ] New item → upload the **same** `dist/formpilot-1.0.0.zip`
+- [ ] Same copy from [`listing.md`](listing.md); category
+      **Workflow & Planning**
+- [ ] Same screenshots and promo tile
 - [ ] Privacy tab: single purpose, permission justifications from
       [`permissions.md`](permissions.md), privacy policy URL, and the three data
       certifications
@@ -84,21 +119,25 @@ data both attract manual review. A request for more information is normal and
 is not a rejection — answer it from [`permissions.md`](permissions.md) rather
 than improvising.
 
-## 5 — Edge Add-ons
+## 5b — Meanwhile, the free routes that already work
 
-Do this the same day. Registration is free, review is usually faster, and it is
-the same package.
+Neither replaces a store listing, but both cost nothing and can run today.
 
-- [ ] Register at [Partner Center](https://partner.microsoft.com/dashboard/microsoftedge)
-- [ ] Upload the same ZIP
-- [ ] Same copy; note the differences listed at the end of
-      [`listing.md`](listing.md)
-- [ ] Support URL: the repository's issues page
-- [ ] Submit
+- [ ] **GitHub Release.** Attach `dist/formpilot-1.0.0.zip` with both hashes
+      (step 2). Anyone can download, unzip and **Load unpacked**. This reaches
+      the technical slice of the audience — engineering students, the person in
+      a study group who sets things up for everyone else — and it is how the
+      first handful of real users will arrive.
+- [ ] **Firefox Add-ons** is also free to publish on, and every browser API
+      FormPilot uses is supported there. It is not a zero-work option though:
+      Firefox's MV3 wants `background.scripts` rather than a service worker and
+      requires a `browser_specific_settings.gecko.id`, so it needs a manifest
+      variant and a real round of testing. Worth doing, but as its own phase —
+      not something to bolt onto a launch week.
 
 ## 6 — After it goes live
 
-- [ ] Put both store links at the top of README, replacing "load it unpacked"
+- [ ] Put the store link(s) at the top of README, replacing "load it unpacked"
       as the primary instruction (keep unpacked as the developer path)
 - [ ] Update [`OVERVIEW.md`](../OVERVIEW.md) — it currently says there is no
       listing

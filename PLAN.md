@@ -17,7 +17,7 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 | 6 | Document (file-upload) autofill | ✅ done |
 | 7 | Shippable: licence, privacy policy, permission diet, CI | ✅ done |
 | 8 | Earn trust in the first ninety seconds | ✅ done |
-| 9 | Launch on the Chrome Web Store and Edge Add-ons | 🟡 prepared — submission pending |
+| 9 | Launch — Edge Add-ons (free) first, Chrome when the $5 is available | 🟡 prepared — submission pending |
 | 10 | Win the market it was built for | planned |
 | 11 | Distribution | ongoing |
 
@@ -393,14 +393,35 @@ from the same logic: the KB-band resize goes first, not the vault, because a
 vault screenshot looks like every password manager's vault screenshot and gets
 pattern-matched away in a second.
 
-**Done when:** a link exists that installs FormPilot in two clicks on both
-Chrome and Edge.
+**Edge Add-ons goes first, and the reason is not only the fee.** Microsoft
+charges nothing to publish; Chrome's US$5 is a Chrome cost, not an extension
+cost, so no part of a launch has to wait on it. Edge is also the default browser
+on every Windows machine, including a great many of the budget laptops and
+shared machines this audience actually uses, and its store is far less saturated
+— a new extension is more discoverable there than as one of thousands on Chrome.
+Arriving at Chrome's stricter review later, with a live listing and real install
+numbers behind you, is a better position than arriving with nothing.
 
-**Not done here, and it needs you:** the US$5 registration, the GitHub Pages
-deploy for the privacy-policy URL, the five screenshots, the uploads — and,
-before any of it, ten minutes actually driving the extension in a browser. Every
-browser-dependent change in Phases 7 and 8 is verified against stubs, not
-against Chrome. Step 0 of the checklist is that walkthrough.
+There is no way around the Chrome fee, and it is worth stating plainly rather
+than hunting for one: no waiver, no student programme, no free tier, and Chrome
+blocks self-hosted `.crx` installs on Windows and macOS, so self-hosting reaches
+nobody who is not already in developer mode. A GitHub Release plus "Load
+unpacked" does reach the technical slice of the audience, and that is where the
+first real users will come from.
+
+Firefox Add-ons is free to publish on too, and every browser API FormPilot uses
+is supported there — but its MV3 wants `background.scripts` rather than a
+service worker and a `browser_specific_settings.gecko.id`, so it needs a
+manifest variant and a real round of testing. Its own phase, not a launch-week
+addition.
+
+**Done when:** a link exists that installs FormPilot in two clicks.
+
+**Not done here, and it needs you:** the free Partner Center registration, the
+GitHub Pages deploy for the privacy-policy URL, the five screenshots, the upload
+— and, before any of it, ten minutes actually driving the extension in a
+browser. Every browser-dependent change in Phases 7 and 8 is verified against
+stubs, not against Chrome. Step 0 of the checklist is that walkthrough.
 
 ---
 
