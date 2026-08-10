@@ -717,6 +717,8 @@ pre#ocrRaw {
 .conf { font: var(--t-title); }
 .conf.high { color: var(--success); }
 .conf.low { color: var(--warn); }
+/* What pre-processing actually did, so a surprising reading has an explanation. */
+.ocr-cleanup { display: block; margin-top: var(--s1); color: var(--text-3); }
 .conf.bad { color: var(--danger); }
 
 /* ---------- 19. Mapping list (JS builds a <table class="maps">) ---------- */

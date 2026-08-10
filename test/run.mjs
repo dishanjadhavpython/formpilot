@@ -26,6 +26,7 @@ const SUITES = [
   ['match',    'match.test.mjs',    'field inference, specificity, refusal cases'],
   ['image',    'image.test.mjs',    'file-size band search, ladder descent, failure modes'],
   ['ocr',      'ocr.test.mjs',      'PAN / date / Aadhaar / name-line heuristics'],
+  ['preprocess', 'preprocess.test.mjs', 'Otsu, contrast stretch, skew recovery on synthetic pages'],
   ['backup',   'backup.test.mjs',   'export-import round trip, malformed-file rejection'],
   ['security', 'security.test.mjs', 'what crosses into a page, hostile-file handling'],
   ['audit',    'audit.test.mjs',    'static scan: no network, no eval, no auto-submit'],

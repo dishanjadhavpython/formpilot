@@ -296,6 +296,14 @@
         <input id="ocrFile" type="file" accept="image/*">
       </div>
 
+      <div class="check">
+        <label for="ocrClean">Clean the photo up first</label>
+        <input id="ocrClean" type="checkbox" checked>
+      </div>
+      <p class="sub">Straightens a tilted photo, evens out uneven lighting and
+      enlarges small text before reading. Nearly always helps on a phone photo;
+      turn it off if you are feeding it a clean flat scan.</p>
+
       <div class="actions">
         <button id="ocrBtn" class="btn btn--primary" type="button" disabled>Read text</button>
         <span id="ocrStatus" class="status" role="status" aria-live="polite"></span>

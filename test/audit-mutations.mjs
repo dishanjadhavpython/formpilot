@@ -139,6 +139,34 @@ const MUTATIONS = [
   ['leaves the passphrase boxes filled after locking', 'options.js',
     (s) => s.replace("  for (const id of ['cpCurrent', 'cpNew', 'cpConfirm']) $(id).value = '';\n", '')],
 
+  // "The clean-up should just report progress like everything else" - and now a
+  // module that handles a photograph of an ID card has a channel out of it.
+  ['gives pre-processing a callback out', 'lib/preprocess.js',
+    (s) => s.replace('export function preprocessForOcr(source, options = {}) {',
+      'export function preprocessForOcr(source, options = {}, onProgress) {\n  onProgress?.(source);')],
+
+  // "A clean-up failure means the image is bad, just surface the error" - which
+  // turns an exotic file format into no OCR at all instead of slightly worse OCR.
+  ['makes a clean-up failure abort the OCR run', 'lib/ocr.js',
+    (s) => s.replace('    return { image: file, applied: null, note: null };', '    throw new Error("preprocessing failed");')],
+
+  // "Skew is skew, why cap it" - and a portrait-orientation card gets a
+  // confident 40-degree correction that destroys the reading.
+  ['unbounds the skew search', 'lib/preprocess.js',
+    (s) => s.replace('export const MAX_SKEW_DEGREES = 12;', 'const SKEW_LIMIT = 90;')],
+
+  // Rotating onto a transparent canvas: the corners composite to black and the
+  // engine reads a black frame as ink.
+  ['rotates onto transparent corners', 'lib/preprocess.js',
+    (s) => s.replace(
+      "  const context = canvas.getContext('2d', { willReadFrequently: true });\n  context.fillStyle = '#ffffff';\n  context.fillRect(0, 0, width, height);\n\n  context.translate(",
+      "  const context = canvas.getContext('2d', { willReadFrequently: true });\n\n  context.translate(")],
+
+  // The EXIF orientation tag is the most common reason a phone photo arrives
+  // sideways, and OCR on a sideways card reads nothing at all.
+  ['gives OCR its own decoder again', 'lib/ocr.js',
+    (s) => s.replace("import { decodeToCanvas } from './image.js';", 'const decodeToCanvas = (f) => createImageBitmap(f);')],
+
   // "The demo would be more convincing with the user's actual details in it."
   ['lets the demo read the unlocked vault', 'demo.js',
     (s) => s.replace(

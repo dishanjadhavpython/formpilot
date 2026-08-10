@@ -20,7 +20,7 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 | 9 | Launch — Edge Add-ons (free) first, Chrome when the $5 is available | 🟡 prepared — submission pending |
 | 10 | Choice fields — radio groups, and the checkbox refusal | ✅ done |
 | 11 | Crop to a shape, and change passphrase | ✅ done |
-| 12 | OCR pre-processing — deskew, threshold, upscale | planned |
+| 12 | OCR pre-processing — deskew, contrast, upscale | ✅ done |
 | 13 | Reach — split `options.js`, then `_locales` (en, hi, mr) | planned |
 | 14 | Distribution | ongoing |
 
@@ -581,6 +581,76 @@ the missing check plus a mutation for it.
 vault still opens. ✅
 
 **Deferred:** rotation and straightening; OCR pre-processing moves to Phase 12.
+
+## Phase 12 — OCR pre-processing ✅
+
+Every real input to OCR is a phone photo of a card lying on a desk: held at an
+angle, lit unevenly, often smaller than the engine wants. PLAN.md has called
+this the biggest available accuracy win since Phase 4.
+
+**The obvious move is the wrong one, and it is worth being precise about why.**
+Threshold everything to hard black and white — that is what "pre-processing for
+OCR" usually means, and it dates from the Tesseract 3 era. Tesseract 4/5 is an
+LSTM engine: it thresholds internally, and it was trained on rendered text with
+antialiasing intact. A hard binary image throws away the greyscale edge
+information the network actually uses, and on a photo with uneven lighting a
+*global* threshold additionally eats whole regions — exactly the case
+pre-processing was supposed to help with.
+
+So the engine is fed **greyscale**, contrast-normalised, deskewed and upscaled.
+Binarisation happens too, but only *internally*, as the input to skew
+estimation, where a clean two-level image is genuinely what the algorithm needs.
+That distinction is the design.
+
+**`lib/preprocess.js` keeps its algorithms pure** — typed arrays in, numbers
+out, no canvas and no DOM. That is not tidiness: it means a page sheared by
+exactly 5° can be generated in Node and the estimator asked whether it says 5°.
+A wrong answer from pre-processing does not look like a bug, it looks like OCR
+being bad, so it needed to be checkable without a browser or a human squinting
+at a preview.
+
+- **Otsu's threshold**, one pass over a 256-bin histogram, parameter-free.
+- **Percentile contrast stretch** rather than min/max, so one blown highlight or
+  a dust speck cannot define the range and neutralise the stretch. A flat image
+  is left alone — scaling a one-level range by 255 turns sensor noise into a
+  barcode.
+- **Skew by projection profile**: shear the ink through candidate angles and
+  keep the one whose row totals are spikiest. Sum of squares rather than
+  variance, because the total ink is identical at every angle — the same pixels
+  are only re-binned — so the mean is constant and the orderings agree. Coarse
+  1° sweep, then 0.1° around the winner, which costs about a tenth of a single
+  fine sweep. **Measured: worst error 0.1° across −10° to +10°**, which is the
+  search resolution.
+- It refuses to answer when it cannot know: too little ink, or a mostly-dark
+  image (a dark background, not text). A confident wrong angle is worse than
+  none — it resamples the image and makes the reading worse with nothing to
+  blame.
+
+**Details that only bite in a browser.** Rotation fills its new corners with
+paper white, because a transparent margin composites to black and the engine
+reads a black frame as ink. Upscaling uses whole-number factors only, which
+resample far more cleanly than 1.37×. The decode is `lib/image.js`'s, shared
+deliberately: the EXIF orientation tag is the most common reason a phone photo
+arrives sideways, and OCR on a sideways card reads nothing at all.
+
+**A clean-up failure falls back to the original file.** Degrading to slightly
+worse OCR is fine; degrading to no OCR because of an exotic format is not.
+
+The UI reports what was actually done — "enlarged 2x, straightened 3.3°,
+contrast evened out" — so a surprising reading has an explanation and the toggle
+has a visible consequence. Nothing happened, nothing is claimed.
+
+Six new mutations, all caught, including one that came back MISSED first: the
+audit was grepping for the `MAX_SKEW_DEGREES` identifier, which is referenced
+several times, so renaming the constant and widening the bound to 90° kept
+reporting green. It now checks the value.
+
+**Done when:** a tilted, dimly lit phone photo of a PAN card reads better with
+the toggle on than off, and the panel says what it did. ✅
+
+**Deferred:** adaptive/local thresholding (Sauvola) for severe lighting
+gradients; perspective correction for a card photographed at an angle rather
+than merely rotated; languages other than English.
 
 ---
 

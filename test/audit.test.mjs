@@ -28,7 +28,8 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 // produces noise, not safety.
 const FIRST_PARTY = [
   'background.js', 'content.js', 'popup.js', 'options.js', 'welcome.js', 'demo.js',
-  'lib/crypto.js', 'lib/match.js', 'lib/image.js', 'lib/ocr.js', 'lib/backup.js'
+  'lib/crypto.js', 'lib/match.js', 'lib/image.js', 'lib/ocr.js', 'lib/backup.js',
+  'lib/preprocess.js'
 ];
 
 const sources = Object.fromEntries(FIRST_PARTY.map((file) => [file, read(file)]));
@@ -594,6 +595,62 @@ console.log('\n17. Cropping, and what locking has to clear');
     'an idle lock must not leave a passphrase sitting in the DOM of an unattended screen');
   ok('releaseCropPreview revokes the URL',
     /function releaseCropPreview[\s\S]{0,240}URL\.revokeObjectURL/.test(options));
+}
+
+// ============================================================================
+console.log('\n18. OCR pre-processing stays on-device and stays honest');
+// ============================================================================
+
+{
+  const pre = code['lib/preprocess.js'];
+  const ocr = code['lib/ocr.js'];
+
+  // This module exists because every real input is a phone photo. It is also a
+  // new place for an image to escape from, so it gets the same treatment as the
+  // rest: rules 1-3 above already scan it for network calls and eval, being in
+  // FIRST_PARTY. These are the ones specific to what it does.
+  ok('pre-processing takes no callbacks it could leak through',
+    !/onProgress|logger|postMessage/.test(pre),
+    'it is pure image maths; nothing needs to escape it');
+  ok('it never touches storage', !/chrome\.storage/.test(pre));
+  ok('it never reads a file itself', !/FileReader|createObjectURL/.test(pre),
+    'the caller decodes; this takes a canvas');
+
+  // The decode is shared with the image tool, deliberately: EXIF orientation is
+  // the most common reason a phone photo arrives sideways, and OCR on a sideways
+  // card reads nothing at all.
+  ok('OCR reuses the EXIF-aware decode',
+    /import \{ decodeToCanvas \} from '\.\/image\.js'/.test(ocr),
+    'a second decoder would be a second chance to lose the orientation tag');
+
+  // Cleaning up must never cost the user their OCR run.
+  const prepare = /export async function prepareForOcr\([\s\S]*?\n\}/.exec(ocr)?.[0] ?? '';
+  ok('prepareForOcr is defined', prepare.length > 0);
+  ok('a clean-up failure falls back to the original',
+    /catch[\s\S]{0,400}return \{ image: file/.test(prepare),
+    'an exotic format must degrade to "read it anyway", not to "read nothing"');
+
+  // A confident wrong angle is worse than none: it resamples the image and
+  // makes the reading worse with nothing to blame.
+  // Checking the VALUE, not just that the name appears somewhere: the constant
+  // is referenced several times, so a grep for the identifier keeps passing
+  // while the bound itself is widened to something that ruins portrait cards.
+  {
+    const limit = Number(/MAX_SKEW_DEGREES\s*=\s*([\d.]+)/.exec(pre)?.[1]);
+    ok('the skew search is bounded to a sane range', limit > 0 && limit <= 25, String(limit));
+  }
+  ok('too little ink means no skew', /count < 64/.test(pre));
+  ok('a mostly-dark image means no skew', /ratio > 0\.9/.test(pre),
+    'that is a dark background, not text');
+
+  // Rotating onto a transparent canvas composites to black, and the engine
+  // reads a black frame as ink.
+  ok('rotation fills its corners with paper white',
+    /function rotateCanvas[\s\S]{0,600}fillStyle = '#ffffff'/.test(pre));
+
+  ok('the report only names what actually happened',
+    /if \(applied\.scaled > 1\)[\s\S]{0,300}parts\.length \? /.test(pre),
+    'an unconditional "cleaned up!" would be noise');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

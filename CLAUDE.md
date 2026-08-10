@@ -149,6 +149,19 @@ and `background.js` reads the stored value.
 - Recognition is on-device and must stay that way. `lib/ocr.js` overrides
   `workerPath`, `corePath` and `langPath`, and sets `workerBlobURL: false`.
   Losing any one of those silently reintroduces a CDN fetch.
+- **Pre-processing feeds the engine greyscale, not black-and-white.** Tesseract
+  4/5 is an LSTM engine: it thresholds internally and was trained on antialiased
+  text, so a hard binary image throws away the edge information it actually
+  uses — and a *global* threshold eats whole regions of an unevenly lit photo,
+  which is the exact case pre-processing exists to help. `lib/preprocess.js`
+  binarises only **internally**, as the input to skew estimation, where a clean
+  two-level image is genuinely what the algorithm needs.
+- Its algorithms are pure functions over typed arrays — no canvas, no DOM — so
+  they can be driven from Node against synthetic pages whose skew is known by
+  construction. Keep them that way: a wrong answer here does not look like a
+  bug, it looks like OCR being bad.
+- A clean-up failure must fall back to the original file. Degrading to "slightly
+  worse OCR" is fine; degrading to "no OCR" is not.
 - OCR output is a *suggestion*, never a save. It lands in the visible form for
   review; only "Save vault" encrypts it.
 - Aadhaar is masked to its last four digits inside the extractor, before the
@@ -162,7 +175,7 @@ popup.html/js     options.html/js   (vault + image tool + OCR)
 welcome.html/js   (first run; opened once on install)
 demo.html/js      (try-it sample form; no vault, no storage)
 content.js        (field detection + fill; injected programmatically, never declared)
-lib/              crypto.js, match.js, image.js, ocr.js, backup.js
+lib/              crypto.js, match.js, image.js, ocr.js, preprocess.js, backup.js
 vendor/           third-party libs, local copies only
 tools/            dev scripts, not shipped
 icons/

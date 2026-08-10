@@ -96,7 +96,7 @@ Full detail, with the *why* behind each: **[README.md](README.md)**.
 | Autofill | Notices a form on its own (badge + inline chip), or click "Fill this form". Infers field meaning from label/name/autocomplete/synonyms, including radio groups, `<select>`s, and single-file image uploads (Aadhaar/PAN/photo/signature) matched by label. Never submits, never ticks a checkbox, never fills passwords, never overwrites, never fills someone else's field with your data |
 | Teach mode | Click a field, label it, remembered per-site for next time |
 | Image tool | Crop to a required shape (3.5×4.5 cm and friends), then compress into an exact KB band — not just a maximum — at a target pixel size; 3 presets + custom specs |
-| OCR | On-device PAN/Aadhaar/marksheet reading, editable suggestions, nothing saved until you say so |
+| OCR | On-device PAN/Aadhaar/marksheet reading. Straightens, evens out and enlarges the photo first; editable suggestions, nothing saved until you say so |
 | Auto-lock + backup | Idle timeout (default 5 min), change passphrase, encrypted export/import |
 
 ## Security model
@@ -192,6 +192,7 @@ lib/
   match.js             field inference, synonyms, what's safe to expose
   image.js             KB-band search over canvas encoding
   ocr.js               Tesseract config + text-pattern heuristics
+  preprocess.js        deskew / contrast / upscale before recognition
   backup.js            export/import envelope + record validation
 vendor/                third-party code, vendored (no CDN, ever) — see vendor/README.md
 styles/                one-ui.css (design tokens/components) — see DESIGN.md
@@ -209,8 +210,9 @@ run.md                 first run, dev loop, troubleshooting
 
 ## Known limitations
 
-- English OCR only; no image pre-processing (deskew/threshold), which would be
-  the biggest accuracy win on phone photos.
+- English OCR only. Photos are straightened, contrast-normalised and upscaled
+  before reading (`lib/preprocess.js`), but that cannot rescue a blurred shot,
+  and tilt is corrected only up to about 12°.
 - Autofill doesn't handle `multiple` file inputs or same-origin iframes.
   Checkboxes are refused permanently and on purpose (hard rule 1a — ticking one
   asserts something on the user's behalf); radio groups and `<select>`s *are*

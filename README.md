@@ -147,6 +147,12 @@ fields, with a confidence score. Every suggestion is editable and individually
 tickable, and nothing is saved until you press **Save vault**. Runs entirely
 on-device.
 
+**It cleans the photo up first.** Every real input here is a phone picture of a
+card lying on a desk — held at an angle, lit unevenly, and often too small for
+the engine. FormPilot straightens it, evens out the lighting and enlarges small
+text before reading, and tells you what it did. Turn it off if you are feeding
+it a flat scan.
+
 ### Auto-lock and backup
 The vault locks itself after a period of inactivity (configurable, default 5
 minutes) and whenever you close the browser. Export an encrypted backup so your
@@ -285,8 +291,9 @@ pre-filled email that must all be left alone. Anything red is a bug.
 
 ## Limitations
 
-- English OCR only, with no image pre-processing — deskewing and thresholding
-  would be the biggest accuracy win on phone photos.
+- English OCR only. Pre-processing straightens, evens out and enlarges, but it
+  cannot rescue a blurred or badly cropped photo — and it corrects tilt up to
+  about 12°, not a sideways card.
 - Autofill does not reach forms inside iframes. Text inputs, `<select>`
   dropdowns, radio groups and single-file image uploads (photo, signature, PAN,
   Aadhaar, other ID proof) are handled; `multiple` file inputs and PDF uploads

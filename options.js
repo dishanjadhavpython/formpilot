@@ -25,7 +25,7 @@
 
 import { createVault, unlockVault, encryptVault, changePassphrase } from './lib/crypto.js';
 import { DEFAULT_PRESETS, ASPECT_PRESETS, fitToBand, planCrop } from './lib/image.js';
-import { recognise, extractFields, terminateOcr } from './lib/ocr.js';
+import { recognise, prepareForOcr, extractFields, terminateOcr } from './lib/ocr.js';
 import { wrapBackup, validateBackup, validateVaultRecord } from './lib/backup.js';
 
 // --- Constants --------------------------------------------------------------
@@ -1681,7 +1681,17 @@ $('ocrBtn').addEventListener('click', async () => {
   setStatus(status, 'Starting the OCR engine...', '', 0);
 
   try {
-    const result = await recognise(file, (message) => {
+    // Straighten, even out the lighting and enlarge before the engine sees it.
+    // Every real input here is a phone photo taken at an angle, which is the
+    // case Tesseract is weakest on. A failure to clean up falls back to the
+    // original file rather than costing the run.
+    let prepared = { image: file, applied: null, note: null };
+    if ($('ocrClean').checked) {
+      setStatus(status, 'Cleaning up the image...', '', 0);
+      prepared = await prepareForOcr(file, { deskew: true, contrast: true, upscale: true });
+    }
+
+    const result = await recognise(prepared.image, (message) => {
       const phase = OCR_PHASES[message.status] ?? message.status;
       const percent = Math.round((message.progress ?? 0) * 100);
       $('ocrBar').style.width = `${percent}%`;
@@ -1690,7 +1700,7 @@ $('ocrBtn').addEventListener('click', async () => {
 
     $('ocrBar').style.width = '100%';
     ocrSuggestions = extractFields(result);
-    renderOcrResult(result);
+    renderOcrResult(result, prepared.note);
 
     if (ocrSuggestions.length === 0) {
       setStatus(status,
@@ -1706,7 +1716,7 @@ $('ocrBtn').addEventListener('click', async () => {
   }
 });
 
-function renderOcrResult(result) {
+function renderOcrResult(result, cleanupNote = null) {
   // Overall confidence, stated plainly rather than dressed up.
   const confidence = Math.round(result.confidence);
   const el = $('ocrConfidence');
@@ -1724,6 +1734,15 @@ function renderOcrResult(result) {
       : ' — poor. Treat every suggestion as a guess.';
 
   el.append(score, caption);
+
+  // Say what was done to the image, so a surprising reading has an explanation
+  // and the toggle above has a visible consequence.
+  if (cleanupNote) {
+    const note = document.createElement('span');
+    note.className = 'ocr-cleanup';
+    note.textContent = ` ${cleanupNote}`;
+    el.append(note);
+  }
 
   $('ocrRaw').textContent = result.text.trim() || '(nothing recognised)';
 
