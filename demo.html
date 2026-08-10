@@ -52,7 +52,22 @@
       color: var(--text);
       margin: var(--s1) 0 0;
     }
-    .portal input[type="radio"], .portal input[type="checkbox"] { width: auto; flex: 0 0 auto; }
+    /* one-ui.css restyles every input[type=checkbox] as a 52x32 toggle switch,
+       which is right for a settings row and wrong for a form on a pretend
+       government portal — and with only `width` overridden it renders as a
+       broken sliver. Hand these two back to the browser. */
+    .portal input[type="radio"], .portal input[type="checkbox"] {
+      appearance: auto;
+      -webkit-appearance: auto;
+      width: auto;
+      height: auto;
+      min-height: 0;
+      flex: 0 0 auto;
+      background: none;
+      border-radius: 0;
+      accent-color: var(--accent);
+    }
+    .portal input[type="checkbox"]::after, .portal input[type="radio"]::after { content: none; }
     /* Matches what content.js draws on a real page: a 2px accent outline. */
     .portal .is-filled {
       outline: 2px solid var(--accent);

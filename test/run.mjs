@@ -31,7 +31,8 @@ const SUITES = [
   ['security', 'security.test.mjs', 'what crosses into a page, hostile-file handling'],
   ['audit',    'audit.test.mjs',    'static scan: no network, no eval, no auto-submit'],
   ['mutation', 'audit-mutations.mjs', 'proves the audit above actually catches regressions'],
-  ['package',  'package.test.mjs',  'the store ZIP: complete, minimal, reproducible']
+  ['package',  'package.test.mjs',  'the store ZIP: complete, minimal, reproducible'],
+  ['wiring',   'wiring.test.mjs',   'every id, label, import and CSS token resolves']
 ];
 
 function run(file) {
