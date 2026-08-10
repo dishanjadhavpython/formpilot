@@ -17,6 +17,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -294,9 +295,82 @@ console.log('\n10. Permissions have not grown');
   for (const risky of ['tabs', 'webRequest', 'cookies', 'history', 'downloads', 'nativeMessaging', 'debugger']) {
     ok(`no "${risky}" permission`, !manifest.permissions.includes(risky));
   }
-  ok('host_permissions is only <all_urls>',
-    JSON.stringify(manifest.host_permissions) === '["<all_urls>"]',
-    'needed to fill a form on any site you choose');
+  // <all_urls> must stay OPTIONAL. Declared as a required host permission, the
+  // install prompt reads "Read and change all your data on all websites" for
+  // every user - including everyone who never turns detection on. Filling on
+  // click runs on activeTab and needs no standing access at all.
+  ok('no required host_permissions at install',
+    manifest.host_permissions === undefined,
+    'a required <all_urls> is the scariest install prompt Chrome shows');
+  ok('optional_host_permissions is exactly <all_urls>',
+    JSON.stringify(manifest.optional_host_permissions) === '["<all_urls>"]',
+    'requested from the suggest-fills toggle, never at install');
+  ok('detection checks the permission before scripting a page',
+    /hasBroadHostAccess\(\)/.test(code['background.js']),
+    'the grant can be revoked from chrome://extensions without telling us');
+  ok('releasing values re-checks the permission',
+    /async function releaseFill[\s\S]{0,400}hasBroadHostAccess\(\)/.test(code['background.js']),
+    'a revoke between the scan and the click must stop the fill');
+}
+
+// ============================================================================
+console.log('\n11. The duplicated expandValues has not drifted');
+// ============================================================================
+//
+// background.js keeps its own copy of lib/match.js's expandValues, because the
+// worker is an ES module and match.js is a classic script for the content
+// script's world. The reason is sound; the risk is that the copies diverge and
+// nothing says so. If they do, the badge count from detection stops agreeing
+// with what a fill actually writes - an intermittent bug in the one code path
+// that is hardest to watch.
+//
+// So this does not compare text. It lifts the worker's copy out of the source,
+// runs both against the same fixtures, and asserts identical output.
+
+{
+  const source = sources['background.js'];
+  const start = source.indexOf('function expandValues(vaultData)');
+  ok('background.js still defines its own expandValues', start !== -1);
+
+  if (start !== -1) {
+    // Balance braces from the function's opening { to find where it ends.
+    let depth = 0, end = -1;
+    for (let i = source.indexOf('{', start); i < source.length; i++) {
+      if (source[i] === '{') depth++;
+      else if (source[i] === '}' && --depth === 0) { end = i + 1; break; }
+    }
+
+    const workerCopy = new Function(`${source.slice(start, end)}; return expandValues;`)();
+    vm.runInThisContext(read('lib/match.js'));
+    const M = globalThis.FormPilotMatch;
+
+    // Each fixture targets one branch the two copies both implement: name
+    // splitting, the labelled-email keys, the alternate-email fallback, the
+    // no-primary-email fallback, custom fields, and empty-value stripping.
+    const FIXTURES = [
+      { fields: {}, customFields: [], emails: [] },
+      { fields: { fullName: 'Prince' }, customFields: [], emails: [] },
+      { fields: { fullName: 'Dishan Jadhav' }, customFields: [], emails: [] },
+      { fields: { fullName: 'A B C D', firstName: 'Zed' }, customFields: [], emails: [] },
+      { fields: { email: 'main@me.test', phone: '', pan: 'ABCDE1234F' }, customFields: [], emails: [] },
+      { fields: {}, customFields: [], emails: [{ label: 'work', value: 'w@me.test' }] },
+      { fields: { email: 'main@me.test' }, customFields: [],
+        emails: [{ label: 'work', value: 'w@me.test' }, { label: 'college', value: 'c@me.test' }] },
+      { fields: {}, customFields: [], emails: [{ label: 'work', value: '' }] },
+      { fields: { fullName: 'A B' }, customFields: [{ label: 'Employee ID', value: 'E-9' }], emails: [] },
+      { fields: { fullName: 'A B' }, customFields: [{ label: 'Blank', value: '' }], emails: [] }
+    ];
+
+    const drifted = [];
+    for (const [i, v] of FIXTURES.entries()) {
+      const fromWorker = workerCopy(v);
+      const fromLib = M.expandValues(v.fields, v.customFields, v.emails);
+      if (JSON.stringify(fromWorker) !== JSON.stringify(fromLib)) {
+        drifted.push(`#${i}: worker ${JSON.stringify(fromWorker)} vs lib ${JSON.stringify(fromLib)}`);
+      }
+    }
+    ok('both copies agree on every fixture', drifted.length === 0, drifted.join(' | '));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

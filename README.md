@@ -1,5 +1,8 @@
 # FormPilot
 
+[![tests](https://github.com/dishanjadhavpython/formpilot/actions/workflows/test.yml/badge.svg)](https://github.com/dishanjadhavpython/formpilot/actions/workflows/test.yml)
+[![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 A local-first Chrome/Edge extension (Manifest V3) that keeps your personal
 details and document images in an encrypted vault, fills web forms from it,
 resizes images to a portal's exact spec, and reads text off ID cards.
@@ -137,14 +140,23 @@ spot. This follows UIDAI guidance to mask by default and store the minimum.
 | Permission | Used for |
 |---|---|
 | `storage` | Keeping the encrypted vault and your settings |
-| `activeTab` | Reading the current tab's fields, only when you click Fill |
+| `activeTab` | Reading and filling the current tab's fields, only when you click Fill |
 | `scripting` | Injecting the fill script into that tab on demand |
 | `alarms` | The idle auto-lock countdown |
-| `tabs` events | Noticing when a page finishes loading, to detect forms |
-| `<all_urls>` | Filling forms on any site you choose to use it on |
+| `<all_urls>` | **Optional — not requested at install.** Only asked for if you switch on "Offer to fill when a form is detected", because watching for forms means seeing the pages you open |
 
-`content.js` is **not** declared in the manifest. It is injected programmatically,
-and only when all three of these hold: the page is http(s), **the vault is
+**FormPilot does not ask for access to your websites when you install it.**
+Chrome's alarming "read and change all your data on all websites" prompt comes
+from a *required* `<all_urls>` permission; FormPilot declares it as
+`optional_host_permissions`, so you are asked only if and when you turn on
+proactive form detection — and turning that setting back off hands the access
+straight back. Decline it and everything still works; FormPilot just waits to be
+asked instead of watching. Clicking **Fill this form** runs on `activeTab`,
+which grants access to that one tab and nothing else.
+
+`content.js` is **not** declared in the manifest. It is injected
+programmatically, and for proactive detection only when all four of these hold:
+the `<all_urls>` permission is granted, the page is http(s), **the vault is
 unlocked**, and form suggestions are switched on. Lock the vault and the
 extension stops touching web pages entirely.
 
@@ -211,13 +223,23 @@ pre-filled email that must all be left alone. Anything red is a bug.
 
 - English OCR only, with no image pre-processing — deskewing and thresholding
   would be the biggest accuracy win on phone photos.
-- Autofill does not handle checkboxes, radio groups, file inputs or iframes.
+- Autofill does not handle checkboxes, radio groups or iframes. Text inputs,
+  `<select>` dropdowns and single-file image uploads (photo, signature, PAN,
+  Aadhaar, other ID proof) are handled; `multiple` file inputs and PDF uploads
+  are not — the vault only ever stores images.
 - The image tool scales but does not crop, so specs demanding an exact aspect
   ratio (3.5×4.5 cm) need cropping elsewhere first.
+- No change-passphrase flow yet, so a backup stays tied to the passphrase in
+  force when it was taken.
 - No cloud sync and no mobile app, by design.
+
+## Privacy policy
+
+[PRIVACY.md](PRIVACY.md) — the short version is that there is nothing to
+collect, because there is nowhere to send it.
 
 ## Licence
 
-Third-party components keep their own licences — see [`vendor/`](vendor/):
-`browser-image-compression` (MIT), `tesseract.js` and `tesseract.js-core`
-(Apache-2.0).
+FormPilot is [MIT licensed](LICENSE). Third-party components keep their own
+licences — see [`vendor/`](vendor/): `browser-image-compression` (MIT),
+`tesseract.js` and `tesseract.js-core` (Apache-2.0).

@@ -65,7 +65,19 @@ const MUTATIONS = [
       'await chrome.storage.local.set({ plaintextVault: vault });')],
 
   ['builds markup out of a value', 'content.js',
-    (s) => s.replace('note.textContent = detail;', 'note.innerHTML = `<b>${detail}</b>`;')]
+    (s) => s.replace('note.textContent = detail;', 'note.innerHTML = `<b>${detail}</b>`;')],
+
+  // "It needs <all_urls> anyway, why make people click twice" - which quietly
+  // puts "read and change all your data on all websites" back in front of
+  // every installer, including those who never turn detection on.
+  ['makes <all_urls> a required permission again', 'manifest.json',
+    (s) => s.replace('"optional_host_permissions": ["<all_urls>"]', '"host_permissions": ["<all_urls>"]')],
+
+  // background.js keeps its own copy of expandValues. This is the plausible
+  // version of that going wrong: someone simplifies one copy and not the other,
+  // and detection starts disagreeing with what a fill writes.
+  ['drifts the worker copy of expandValues', 'background.js',
+    (s) => s.replace("values.middleName ??= parts.slice(1, -1).join(' ')", 'values.middleName ??= parts[1]')]
 ];
 
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'formpilot-audit-'));

@@ -15,6 +15,15 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 | 4 | OCR auto-extract (stretch) | ✅ done |
 | 5 | Polish & reliability | ✅ done |
 | 6 | Document (file-upload) autofill | ✅ done |
+| 7 | Shippable: licence, privacy policy, permission diet, CI | ✅ done |
+| 8 | Earn trust in the first ninety seconds | planned |
+| 9 | Launch on the Chrome Web Store and Edge Add-ons | planned |
+| 10 | Win the market it was built for | planned |
+| 11 | Distribution | ongoing |
+
+Phases 0–6 built the extension. Phases 7–11 are about the gap between "an
+extension that works" and "an extension people can find, trust and install" —
+almost none of it feature work.
 
 ---
 
@@ -196,6 +205,74 @@ alone if it already has a file picked, and never touches submit.
 **Deferred:** PDF/other document formats (vault only stores images);
 `multiple` file inputs; document types outside the Identity group
 (marksheets etc.); teach-mode labelling for document slots.
+
+## Phase 7 — Shippable ✅
+
+Nothing here is a feature. It is everything the project needed in order to be
+installable by somebody who is not its author.
+
+**A licence.** There wasn't one. README licensed only the vendored
+dependencies, which under copyright default means *all rights reserved* on
+FormPilot itself — nobody could legally fork it, contribute to it, or in many
+workplaces install it. Self-defeating for a project whose pitch is "audit me
+yourself". Now MIT.
+
+**A privacy policy** (`PRIVACY.md`). The Chrome Web Store requires a hosted
+policy URL from any extension handling personal or sensitive data, and this one
+handles Aadhaar and PAN. It is also the easiest such document anyone will ever
+write: nothing is collected because there is nowhere to send it.
+
+**`<all_urls>` became optional, and this is the real change.** Declared as a
+required host permission, the install prompt reads *"Read and change all your
+data on all websites"* for every single installer — including everyone who
+never turns detection on. It was never needed for the main feature: clicking
+Fill runs on `activeTab`, which grants access to the one tab whose icon was
+clicked. Only proactive detection needs standing access to every site, and that
+is a setting.
+
+So `<all_urls>` moved to `optional_host_permissions`, and the `suggestFills`
+toggle in `options.js` is where the browser's own prompt now happens. Three
+things that were easy to get wrong:
+
+- `chrome.permissions.request()` needs a **live user gesture**, so it hangs off
+  the checkbox's `change` event, not the Save button — by the time a save
+  handler has awaited anything, the gesture is spent.
+- The permission, not the stored preference, is the truth. A user can revoke it
+  from `chrome://extensions` and nothing tells the extension. So `loadSettings()`
+  reconciles the checkbox against `permissions.contains()`, saving refuses to
+  write `suggestFills: true` without the grant, and both `detectForms()` and
+  `releaseFill()` ask again live rather than trusting detection-time state.
+- Turning the toggle off calls `permissions.remove()`. A permission held but
+  unused is still one the user is trusting us with, and asking again later costs
+  one prompt.
+
+**The duplicated `expandValues` is now guarded.** `background.js` keeps its own
+copy of `lib/match.js`'s version (the worker is a module; `match.js` is a
+classic script for the content script's world) under a comment saying "keep in
+step" — with nothing enforcing it. The tests only ever exercised the `match.js`
+copy. Drift there would make the badge count from detection disagree with what a
+fill actually writes: an intermittent bug in the code path that is hardest to
+observe. The audit now lifts the worker's copy out of the source, runs both
+against ten fixtures covering every branch they share, and asserts identical
+output.
+
+**Also:** CI on every push and pull request (with a guard asserting the project
+still has zero npm dependencies); the four service-worker `console.log` calls
+gated behind `DEBUG`, with the `console.warn` about session access level left
+ungated because that one signals a real security degradation; README's stale
+limitations list corrected (it still claimed file inputs were unhandled, which
+Phase 6 shipped, and omitted that `<select>` works); and the version bumped to
+`1.0.0`, since `0.1.0` reads as alpha for software that passes 409 assertions.
+
+Two new mutations prove the two new audit checks actually fail when broken —
+making `<all_urls>` required again, and drifting the worker's `expandValues`.
+
+**Done when:** a stranger can clone the repo, read the licence, see a green CI
+badge, and install without Chrome warning them about all their data on all
+websites. ✅
+
+**Deferred to Phase 8:** the welcome page on install, try-it-before-passphrase
+mode, the keyboard shortcut, release checksums, and a private security contact.
 
 ---
 

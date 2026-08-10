@@ -1018,15 +1018,72 @@ $('importBtn').addEventListener('click', async () => {
 // Settings (plain preferences, not secret, stored unencrypted)
 // ============================================================================
 
+// --- Proactive detection needs a permission the install did not ask for -----
+//
+// <all_urls> is declared as an OPTIONAL host permission, so a fresh install
+// carries no standing access to any site and the install prompt stays quiet.
+// Filling on click does not need it (activeTab covers that). Scanning every
+// page you open does, so this toggle is where the browser's own permission
+// prompt belongs.
+//
+// chrome.permissions.request() only works inside a user gesture, which is why
+// this hangs off the checkbox's change event rather than the Save button - by
+// the time a save handler runs an await, the gesture is spent.
+
+const ALL_URLS = { origins: ['<all_urls>'] };
+
+async function hasBroadHostAccess() {
+  try {
+    return await chrome.permissions.contains(ALL_URLS);
+  } catch {
+    return false;
+  }
+}
+
 async function loadSettings() {
   const { settings } = await chrome.storage.local.get('settings');
   const merged = { ...SETTINGS_DEFAULTS, ...(settings ?? {}) };
   $('autoLock').value = merged.autoLockMinutes;
   $('highlight').checked = merged.highlightFills;
-  $('suggestFills').checked = merged.suggestFills;
   $('glassMode').value = merged.glassMode;
   applyGlassMode(merged.glassMode);
+
+  // The permission is the real state, not the stored preference: it can be
+  // revoked from chrome://extensions without this page ever being told, and a
+  // ticked box that does nothing is worse than an honest unticked one.
+  $('suggestFills').checked = merged.suggestFills && await hasBroadHostAccess();
 }
+
+$('suggestFills').addEventListener('change', async (event) => {
+  const status = $('settingsStatus');
+  const box = event.target;
+
+  if (box.checked) {
+    let granted = false;
+    try {
+      granted = await chrome.permissions.request(ALL_URLS);
+    } catch (err) {
+      setStatus(status, `Could not ask for permission: ${err.message}`, 'err', 9000);
+    }
+    if (!granted) {
+      box.checked = false;
+      setStatus(status,
+        'Left off. FormPilot still fills forms when you click - it just will not watch for them.',
+        'warn', 9000);
+      return;
+    }
+    setStatus(status, 'On. Save settings to keep this.', 'ok', 6000);
+    return;
+  }
+
+  // Turning it off gives the access back rather than merely ignoring it. A
+  // permission held but unused is still a permission the user is trusting us
+  // with, and getting it back later costs one more prompt, which is cheap.
+  try {
+    await chrome.permissions.remove(ALL_URLS);
+  } catch { /* already gone, or the browser refused - the setting still governs */ }
+  setStatus(status, 'Off. Site access given back. Save settings to keep this.', 'ok', 6000);
+});
 
 $('glassMode').addEventListener('change', () => applyGlassMode($('glassMode').value));
 
@@ -1039,13 +1096,19 @@ $('saveSettingsBtn').addEventListener('click', async () => {
     return;
   }
 
+  // Never store suggestFills:true without the permission that makes it work.
+  // The two can fall out of step - a revoke from chrome://extensions leaves the
+  // preference behind - and the stored value is what background.js reads.
+  const suggestFills = $('suggestFills').checked && await hasBroadHostAccess();
+  $('suggestFills').checked = suggestFills;
+
   const { settings } = await chrome.storage.local.get('settings');
   await chrome.storage.local.set({
     settings: {
       ...(settings ?? {}),
       autoLockMinutes: minutes,
       highlightFills: $('highlight').checked,
-      suggestFills: $('suggestFills').checked,
+      suggestFills,
       glassMode: $('glassMode').value
     }
   });

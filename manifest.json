@@ -1,11 +1,13 @@
 {
   "manifest_version": 3,
   "name": "FormPilot",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Local-first document vault and form autofill. All data stays on your device.",
 
   "permissions": ["storage", "activeTab", "scripting", "alarms"],
-  "host_permissions": ["<all_urls>"],
+
+  "_comment_permissions": "<all_urls> is OPTIONAL, not required. Filling on click is covered by activeTab, which the browser grants for the tab you clicked on and nothing else. Only proactive detection - scanning each page you open to badge the icon - needs standing access to every site, and that is a setting the user turns on. Declaring it up front would make the install prompt read 'Read and change all your data on all websites' for everybody, including people who never enable detection.",
+  "optional_host_permissions": ["<all_urls>"],
 
   "background": {
     "service_worker": "background.js"

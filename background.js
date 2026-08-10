@@ -17,10 +17,26 @@
 chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })
   .catch((err) => console.warn('[FormPilot] could not set session access level:', err));
 
+// --- Logging ----------------------------------------------------------------
+//
+// A shipped extension should not narrate itself into a console anybody can
+// open. None of these lines carry vault data - they are lifecycle notes - but
+// "vault locked (idle timeout)" is still information about the user, and noise
+// in a service-worker console makes a real error harder to spot. Flip DEBUG to
+// true while working on the worker; it must be false in a release.
+//
+// console.warn above is deliberately NOT gated: failing to pin the session
+// store to trusted contexts is a real security degradation, and it should be
+// visible even in a release build.
+
+const DEBUG = false;
+
+const log = (...args) => { if (DEBUG) console.log('[FormPilot]', ...args); };
+
 // --- Lifecycle ------------------------------------------------------------
 
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('[FormPilot] onInstalled:', details.reason);
+  log('onInstalled:', details.reason);
 
   // Seed a tiny settings object on first install so later phases can rely on it.
   const { settings } = await chrome.storage.local.get('settings');
@@ -32,12 +48,12 @@ chrome.runtime.onInstalled.addListener(async (details) => {
         highlightFills: true  // used in Phase 2 (outline filled fields)
       }
     });
-    console.log('[FormPilot] default settings written');
+    log('default settings written');
   }
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  console.log('[FormPilot] browser started, service worker awake');
+  log('browser started, service worker awake');
   // Session storage should already be empty after a browser restart. Clearing
   // it anyway costs nothing and means a new session always starts locked.
   await chrome.storage.session.remove('vaultData');
@@ -79,7 +95,7 @@ async function lockNow(reason) {
   // Removing the session copy is the lock. Any open options page notices via
   // chrome.storage.onChanged and drops its in-memory key to match.
   await chrome.storage.session.remove(SESSION_KEY);
-  console.log(`[FormPilot] vault locked (${reason})`);
+  log(`vault locked (${reason})`);
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -94,11 +110,19 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // fill, and lets the content script offer an inline "Fill" chip.
 //
 // PRIVACY: this is the one place the extension scripts a page you did not
-// explicitly ask about, so it is gated three ways. Nothing is injected unless
-//   1. the page is http(s) — never chrome://, never the Web Store,
-//   2. the vault is UNLOCKED — a locked vault means zero page scripting, and
-//   3. the "suggest filling" setting is on.
+// explicitly ask about, so it is gated four ways. Nothing is injected unless
+//   1. the user has GRANTED the optional <all_urls> host permission — it is not
+//      requested at install time, so this is false until they turn detection on,
+//   2. the page is http(s) — never chrome://, never the Web Store,
+//   3. the vault is UNLOCKED — a locked vault means zero page scripting, and
+//   4. the "suggest filling" setting is on.
 // Detection never fills anything; it counts and offers.
+//
+// Gate 1 is checked live on every scan rather than cached, because a user can
+// revoke the permission at any moment from chrome://extensions and the worker
+// is never told. Without the grant, `url` arrives undefined anyway and gate 2
+// would catch it - but relying on that would make the privacy boundary an
+// accident of the tabs API rather than something this file states outright.
 
 function setBadge(tabId, count) {
   chrome.action.setBadgeText({ tabId, text: count > 0 ? String(count) : '' })
@@ -124,7 +148,21 @@ async function ensureContentScript(tabId) {
   });
 }
 
+/**
+ * Has the user granted the optional <all_urls> permission that proactive
+ * detection needs? Filling on click never comes through here - that runs on
+ * activeTab, which the browser grants for the one tab you clicked on.
+ */
+async function hasBroadHostAccess() {
+  try {
+    return await chrome.permissions.contains({ origins: ['<all_urls>'] });
+  } catch {
+    return false;   // treat an unanswerable question as "no"
+  }
+}
+
 async function detectForms(tabId, url) {
+  if (!(await hasBroadHostAccess())) { setBadge(tabId, 0); return; }
   if (!/^https?:/i.test(url ?? '')) return;
 
   const { settings } = await chrome.storage.local.get('settings');
@@ -239,14 +277,22 @@ const MAX_RELEASED_DOC_TYPES = 20;
 /**
  * Hand a content script the values and documents its plan needs, and nothing
  * else. One authorization path for both, rather than two to keep in sync -
- * everything below (real http(s) tab, suggestFills on, vault unlocked)
- * applies equally to a phone number and a signature image.
+ * everything below (host access granted, real http(s) tab, suggestFills on,
+ * vault unlocked) applies equally to a phone number and a signature image.
  *
  * @param {string[]} keys      vault key names the page's plan needs
  * @param {string[]} docTypes  document types the page's plan needs
  * @param {object} sender      the runtime sender, already checked to be ours
  */
 async function releaseFill(keys, docTypes, sender) {
+  // Only the chip reaches here, and the chip only exists because detection ran
+  // - which needed this permission. Re-checking anyway: the user can revoke it
+  // between the scan and the click, and every other precondition below is
+  // re-checked at release time rather than trusted from detection time.
+  if (!(await hasBroadHostAccess())) {
+    return { ok: false, error: 'FormPilot no longer has permission for this site.' };
+  }
+
   // Must come from a content script in a real tab, on an ordinary web page.
   if (!sender?.tab?.id || !/^https?:/i.test(sender.tab.url ?? sender.url ?? '')) {
     return { ok: false, error: 'Fill can only be requested from a web page.' };

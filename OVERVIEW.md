@@ -65,9 +65,10 @@ they cannot call each other's functions directly, MV3 forbids it:
 - **`background.js`** — the service worker. Runs the idle auto-lock alarm,
   scans each new page for fillable fields (badging the toolbar icon), and is
   the only thing that ever releases real vault *values and documents* to a
-  content script, gated on sender identity, an http(s) tab, the vault being
-  unlocked, and suggestions being on — re-checked on every release, not
-  cached from detection time.
+  content script, gated on sender identity, the optional `<all_urls>`
+  permission actually being granted, an http(s) tab, the vault being unlocked,
+  and suggestions being on — all re-checked on every release, not cached from
+  detection time.
 - **`popup.js`** — the toolbar button's UI. Sends a `PLAN` (key names only),
   then a `FILL` (values for just those keys) — two messages on purpose, so a
   page that turns out to want nothing never sees anything.
@@ -172,6 +173,9 @@ serve `test/form.html` for a live autofill check.
 ## Layout
 
 ```
+LICENSE                MIT
+PRIVACY.md             privacy policy — the hosted URL the store listing needs
+.github/workflows/     CI: every suite on every push and pull request
 manifest.json          MV3 manifest: permissions, CSP, externally_connectable
 background.js          service worker — routing, idle auto-lock, detection
 popup.html / popup.js  toolbar button — the Fill/Teach flow
@@ -221,6 +225,7 @@ run.md                 first run, dev loop, troubleshooting
 | Install and use it | [README.md](README.md) → Install / First run |
 | Understand a feature's behaviour | [README.md](README.md) → Features |
 | Check what's safe to change | [CLAUDE.md](CLAUDE.md) → Hard rules |
+| Know what is stored and where | [PRIVACY.md](PRIVACY.md) |
 | See how a phase was built | [PLAN.md](PLAN.md) |
 | Understand the security model | [SECURITY.md](SECURITY.md) |
 | Match a UI change to the design system | [DESIGN.md](DESIGN.md) |

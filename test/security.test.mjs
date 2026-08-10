@@ -266,7 +266,19 @@ const area = (backing) => ({
 
 let onMessage = null;
 const listener = { addListener: (fn) => { onMessage = fn; } };
+
+// <all_urls> is optional, so "has the user granted it" is a live question the
+// worker asks on every scan and every release. Flipping this stands in for the
+// user granting it on the settings toggle, or revoking it from
+// chrome://extensions without the worker ever being told.
+let hostAccessGranted = true;
+
 globalThis.chrome = {
+  permissions: {
+    contains: async ({ origins }) => hostAccessGranted && origins.includes('<all_urls>'),
+    request: async () => hostAccessGranted,
+    remove: async () => { hostAccessGranted = false; return true; }
+  },
   runtime: {
     id: 'formpilotformpilotformpilotform',
     getURL: (p) => `chrome-extension://formpilotformpilotformpilotform/${p}`,
@@ -316,6 +328,17 @@ ok('the values are correct', released.values.email === FIELDS.email);
 const overreach = await ask({ type: 'REQUEST_FILL', keys: ['email', 'pan', 'address', 'nope'] }, PAGE);
 ok('unknown keys are dropped, not undefined',
   !Object.hasOwn(overreach.values, 'nope'), Object.keys(overreach.values).join(','));
+
+// The permission that let us script this page in the first place can be taken
+// back at any moment from chrome://extensions, and nothing notifies the worker.
+// An unlocked vault plus a still-open chip must not be enough on its own.
+hostAccessGranted = false;
+const revoked = await ask({ type: 'REQUEST_FILL', keys: ['email', 'phone'] }, PAGE);
+ok('a revoked host permission releases nothing', revoked.ok === false,
+  JSON.stringify(Object.keys(revoked.values ?? {})));
+ok('and carries no values even in the refusal',
+  revoked.values === undefined && !JSON.stringify(revoked).includes(FIELDS.email));
+hostAccessGranted = true;
 
 const flood = await ask({ type: 'REQUEST_FILL', keys: Array(500).fill('email') }, PAGE);
 ok('a flood of keys is capped', Object.keys(flood.values).length <= 60);

@@ -98,15 +98,30 @@ These are not preferences. Breaking one is a bug, even if the feature works.
 
 `background.js` scans a page on load and badges the toolbar with how many fields
 it could fill. This is the one place the extension scripts a page the user did
-not explicitly ask about, so it is gated three ways and **all three must hold**:
+not explicitly ask about, so it is gated four ways and **all four must hold**:
 
-1. the page is `http(s)` — never `chrome://`, never the Web Store;
-2. the vault is **unlocked** — a locked vault means zero page scripting;
-3. the `suggestFills` setting is on.
+1. the optional `<all_urls>` host permission is **granted** — see below;
+2. the page is `http(s)` — never `chrome://`, never the Web Store;
+3. the vault is **unlocked** — a locked vault means zero page scripting;
+4. the `suggestFills` setting is on.
 
 Detection counts and offers. It never fills — `DETECT` calls `planFill()`, which
 touches nothing. Filling is always one explicit click, from the popup or the
 inline chip.
+
+**`<all_urls>` is optional, and must stay that way.** It lives in
+`optional_host_permissions`, not `host_permissions`, so a fresh install carries
+no standing access to any site and the install prompt never says "read and
+change all your data on all websites". Filling on click needs none of it —
+`activeTab` grants access to the one tab whose toolbar icon was clicked.
+`options.js` requests the permission from the `suggestFills` toggle (inside the
+change event: `chrome.permissions.request()` needs a live user gesture, and an
+`await` in a save handler has already spent it) and hands it back when the
+toggle goes off. Both `detectForms()` and `releaseFill()` re-check the grant
+live via `hasBroadHostAccess()` — it can be revoked from `chrome://extensions`
+without the worker ever being told, so a cached answer is a stale one. Never
+store `suggestFills: true` without the permission actually held; the two drift,
+and `background.js` reads the stored value.
 
 ## OCR
 

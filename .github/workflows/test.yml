@@ -1,0 +1,43 @@
+name: tests
+
+# The suite is the reason to trust this extension with an Aadhaar number, so it
+# has to be visible to strangers, not just green on the author's machine. Every
+# push and every pull request, no exceptions.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No install step on purpose: FormPilot has no runtime or dev
+      # dependencies, and the suites run on Node's own Web Crypto. If a
+      # `npm ci` ever becomes necessary here, something has been added that
+      # the "loads unpacked exactly as it sits on disk" rule forbids.
+      - name: Check there are still no dependencies
+        run: |
+          node -e '
+            const pkg = require("./package.json");
+            const counts = [pkg.dependencies, pkg.devDependencies]
+              .map((d) => Object.keys(d ?? {}).length);
+            if (counts.some((n) => n > 0)) {
+              console.error("FormPilot must have no npm dependencies:", counts);
+              process.exit(1);
+            }
+            console.log("no dependencies, as expected");
+          '
+
+      - name: Run every suite
+        run: npm test
