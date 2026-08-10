@@ -79,7 +79,15 @@ These are not preferences. Breaking one is a bug, even if the feature works.
 - PBKDF2-SHA256 → AES-256-GCM. Parameters live in `lib/crypto.js`.
 - **A fresh random IV on every single save.** Reusing an IV under one key breaks
   GCM outright. `encryptVault()` generates one per call — never pass one in.
-- The salt is per-vault, random, stored in the clear, and never changes.
+- The salt is per-vault, random, and stored in the clear. It is fixed for the
+  life of a **passphrase**: never regenerated on an ordinary save (the old
+  ciphertext would stop opening), and regenerated exactly once per
+  `changePassphrase()`, where everything is being re-encrypted anyway and
+  separate salts stop one PBKDF2 run testing a candidate against both an old
+  backup and the new record.
+- **A passphrase change verifies before it writes.** `changePassphrase()`
+  decrypts the record it just produced, with the new key, before returning it.
+  A half-applied change is an unopenable vault — worse than no change.
 - Derived keys are `extractable: false` and live only in page memory. They are
   never written to storage, never logged, never passed in messages.
 - No stored password hash — a failed decrypt *is* the wrong-passphrase signal.

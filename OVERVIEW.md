@@ -95,9 +95,9 @@ Full detail, with the *why* behind each: **[README.md](README.md)**.
 | Encrypted vault | Name, DOB, phone, address, PAN, masked Aadhaar, gender/category/marital status, unlimited custom fields and labelled emails, document images by type |
 | Autofill | Notices a form on its own (badge + inline chip), or click "Fill this form". Infers field meaning from label/name/autocomplete/synonyms, including radio groups, `<select>`s, and single-file image uploads (Aadhaar/PAN/photo/signature) matched by label. Never submits, never ticks a checkbox, never fills passwords, never overwrites, never fills someone else's field with your data |
 | Teach mode | Click a field, label it, remembered per-site for next time |
-| Image tool | Compress into an exact KB band (not just a maximum) at a target pixel size; 3 presets + custom specs |
+| Image tool | Crop to a required shape (3.5×4.5 cm and friends), then compress into an exact KB band — not just a maximum — at a target pixel size; 3 presets + custom specs |
 | OCR | On-device PAN/Aadhaar/marksheet reading, editable suggestions, nothing saved until you say so |
-| Auto-lock + backup | Idle timeout (default 5 min), encrypted export/import |
+| Auto-lock + backup | Idle timeout (default 5 min), change passphrase, encrypted export/import |
 
 ## Security model
 
@@ -218,10 +218,8 @@ run.md                 first run, dev loop, troubleshooting
   fixed set of document types (photo, signature, PAN, Aadhaar, other ID proof)
   — see Phase 6 in PLAN.md — but not marksheets/other types, and not PDF
   uploads (the vault only ever stores images).
-- The image tool scales but doesn't crop, so an exact-aspect-ratio spec (e.g.
-  3.5×4.5 cm) needs cropping done elsewhere first.
-- No change-passphrase flow — a backup is tied to the passphrase in force when
-  it was taken.
+- Cropping is one positionable, zoomable rectangle — no rotation, deskewing or
+  background removal.
 - No cloud sync, no mobile app — by design, not by omission.
 - Edge hasn't been driven directly by an automated real-browser test (see
   above); Chrome Stable can't be, by Chrome's own policy.

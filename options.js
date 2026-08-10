@@ -23,8 +23,8 @@
 // signature image to a matching file input. See publishSession() below for
 // the size trade-off that comes with that.
 
-import { createVault, unlockVault, encryptVault } from './lib/crypto.js';
-import { DEFAULT_PRESETS, fitToBand } from './lib/image.js';
+import { createVault, unlockVault, encryptVault, changePassphrase } from './lib/crypto.js';
+import { DEFAULT_PRESETS, ASPECT_PRESETS, fitToBand, planCrop } from './lib/image.js';
 import { recognise, extractFields, terminateOcr } from './lib/ocr.js';
 import { wrapBackup, validateBackup, validateVaultRecord } from './lib/backup.js';
 
@@ -499,12 +499,24 @@ function lockLocally() {
   // and a visible preview of it.
   clearResult();
 
+  // The crop stage holds its own object URL and shows the FULL uncropped image
+  // - the most revealing single thing on this page. Not covered by
+  // clearResult(), which only knows about the compressed output.
+  releaseCropPreview();
+  $('cropBox').classList.add('hidden');
+
   // Clear the rendered plaintext out of the DOM as well.
   for (const el of document.querySelectorAll('[data-field]')) el.value = '';
   $('emailList').replaceChildren();
   $('customList').replaceChildren();
   $('docList').replaceChildren();
   $('resultPreview').removeAttribute('src');
+
+  // The change-passphrase boxes hold passphrases in plain text in the DOM. If
+  // the idle timer fires mid-edit they would sit there, in the clear, on an
+  // unattended screen - the one thing this whole page exists to prevent.
+  for (const id of ['cpCurrent', 'cpNew', 'cpConfirm']) $(id).value = '';
+  setStatus($('changePassStatus'), '');
 
   // And the file pickers, which otherwise still name the document you chose.
   for (const id of ['docFile', 'imageFile', 'ocrFile']) $(id).value = '';
@@ -1022,6 +1034,86 @@ $('importBtn').addEventListener('click', async () => {
 });
 
 // ============================================================================
+// Change passphrase
+// ============================================================================
+//
+// Without this, a passphrase you suspected was compromised was one you were
+// stuck with - the only remedy was export, wipe, set up again - and every
+// backup stayed tied to whatever passphrase was in force when it was taken.
+//
+// The dangerous version of this feature writes a new record and then discovers
+// it cannot be opened. lib/crypto.js's changePassphrase() decrypts what it just
+// produced before returning it, so by the time anything is written the new
+// record is already proven to open. The unsaved-edits check below matters for
+// the same reason: the re-encryption works from the record on DISK, so an edit
+// still sitting in the form would be silently discarded.
+
+$('changePassBtn').addEventListener('click', async () => {
+  const status = $('changePassStatus');
+  const current = $('cpCurrent').value;
+  const next = $('cpNew').value;
+  const confirm = $('cpConfirm').value;
+
+  if (!sessionKey) {
+    setStatus(status, 'Unlock the vault first.', 'err');
+    return;
+  }
+  if (dirty) {
+    setStatus(status, 'Save your changes first — this re-encrypts what is on disk.', 'err', 8000);
+    return;
+  }
+  if (!current || !next) {
+    setStatus(status, 'Fill in the current and new passphrases.', 'err');
+    return;
+  }
+  if (next !== confirm) {
+    setStatus(status, 'The two new passphrases do not match.', 'err');
+    return;
+  }
+  if (next === current) {
+    setStatus(status, 'That is the passphrase you already have.', 'err');
+    return;
+  }
+  if (next.length < MIN_PASSPHRASE) {
+    setStatus(status, `Use at least ${MIN_PASSPHRASE} characters.`, 'err');
+    return;
+  }
+
+  $('changePassBtn').disabled = true;
+  setStatus(status, 'Re-encrypting...', '', 0);
+
+  try {
+    const { [STORAGE_KEY]: record } = await chrome.storage.local.get(STORAGE_KEY);
+    if (!record) throw new Error('No vault found on this device.');
+
+    // Throws BAD_PASSPHRASE if `current` is wrong. That is the authorisation
+    // check - being unlocked is not enough, since anyone at an unattended
+    // machine is also "unlocked".
+    const changed = await changePassphrase(current, next, record);
+
+    await chrome.storage.local.set({ [STORAGE_KEY]: changed.record });
+
+    // Adopt the new key and parameters, so the next Save encrypts under the new
+    // passphrase rather than re-deriving the old one.
+    sessionKey = changed.key;
+    kdfParams = changed.kdfParams;
+
+    for (const id of ['cpCurrent', 'cpNew', 'cpConfirm']) $(id).value = '';
+    setStatus(status,
+      'Done. Old backup files still need the old passphrase — export a fresh one.',
+      'ok', 12000);
+  } catch (err) {
+    setStatus(status,
+      err.code === 'BAD_PASSPHRASE'
+        ? 'That is not your current passphrase. Nothing was changed.'
+        : `Could not change it: ${err.message}. Nothing was changed.`,
+      'err', 9000);
+  } finally {
+    $('changePassBtn').disabled = false;
+  }
+});
+
+// ============================================================================
 // Settings (plain preferences, not secret, stored unencrypted)
 // ============================================================================
 
@@ -1191,17 +1283,175 @@ function syncCustomVisibility() {
 
 function currentPreset() {
   const id = $('presetSelect').value;
-  if (id !== CUSTOM_ID) return allPresets().find((p) => p.id === id);
+  const base = id !== CUSTOM_ID
+    ? allPresets().find((p) => p.id === id)
+    : {
+        id: 'custom',
+        label: 'Custom',
+        format: $('cpFormat').value,
+        maxWidthOrHeight: Number($('cpDim').value),
+        minKB: Number($('cpMin').value),
+        maxKB: Number($('cpMax').value)
+      };
 
-  return {
-    id: 'custom',
-    label: 'Custom',
-    format: $('cpFormat').value,
-    maxWidthOrHeight: Number($('cpDim').value),
-    minKB: Number($('cpMin').value),
-    maxKB: Number($('cpMax').value)
-  };
+  // The shape is chosen per image, not per preset: the same "20-50 KB @ 600px"
+  // spec is used for a portrait one day and a signature strip the next.
+  return base ? { ...base, ...cropSpec() } : base;
 }
+
+// ============================================================================
+// Crop
+// ============================================================================
+//
+// A portal asking for "3.5 x 4.5 cm" is asking for an ASPECT RATIO, and the one
+// thing scaling cannot do is change an aspect ratio. Before this, the tool sent
+// the user to another application at precisely the moment it was about to be
+// useful.
+//
+// The stage always shows the WHOLE image, with everything outside the target
+// shape shaded rather than cropped away, so you can see what you are giving up.
+// Dragging moves the focus point; the zoom slider shrinks the rect. All the
+// geometry lives in planCrop() in lib/image.js, which is pure and unit-tested -
+// this only converts pointer positions into a normalised focus.
+
+let cropFocus = { x: 0.5, y: 0.5 };
+let cropZoom = 1;
+let cropUrl = null;                 // object URL for the stage preview
+let cropNatural = { width: 0, height: 0 };
+
+function currentAspect() {
+  const id = $('aspectSelect').value;
+  return ASPECT_PRESETS.find((a) => a.id === id)?.ratio ?? null;
+}
+
+/** The crop half of a preset: what fitToBand() needs to cut before it scales. */
+function cropSpec() {
+  const ratio = currentAspect();
+  return ratio ? { aspect: ratio, focus: { ...cropFocus }, zoom: cropZoom } : {};
+}
+
+function loadAspects() {
+  const select = $('aspectSelect');
+  select.replaceChildren();
+  for (const aspect of ASPECT_PRESETS) {
+    const option = document.createElement('option');
+    option.value = aspect.id;
+    option.textContent = aspect.label;
+    select.append(option);
+  }
+}
+
+function releaseCropPreview() {
+  if (cropUrl) { URL.revokeObjectURL(cropUrl); cropUrl = null; }
+  $('cropImage').removeAttribute('src');
+  cropNatural = { width: 0, height: 0 };
+}
+
+/** Draw the shade and the rect over the stage, in stage pixels. */
+function paintCrop() {
+  const image = $('cropImage');
+  const ratio = currentAspect();
+
+  const shown = { width: image.clientWidth, height: image.clientHeight };
+  if (!ratio || !shown.width || !shown.height) {
+    $('cropBox').classList.add('hidden');
+    return;
+  }
+
+  // planCrop works in source pixels; the stage is a scaled copy, so plan against
+  // the displayed size and the same rect comes out proportionally identical.
+  const rect = planCrop(shown.width, shown.height, ratio, cropFocus, cropZoom);
+
+  for (const el of [$('cropShade'), $('cropRect')]) {
+    el.style.left = `${rect.x}px`;
+    el.style.top = `${rect.y}px`;
+    el.style.width = `${rect.width}px`;
+    el.style.height = `${rect.height}px`;
+  }
+
+  // What the crop will actually produce, in real pixels, before any resizing.
+  if (cropNatural.width) {
+    const real = planCrop(cropNatural.width, cropNatural.height, ratio, cropFocus, cropZoom);
+    $('cropNote').textContent =
+      `Drag the image to choose what to keep. Crop: ${real.width} x ${real.height} px.`;
+  }
+}
+
+async function showCropStage(file) {
+  releaseCropPreview();
+  if (!file || !currentAspect()) { $('cropBox').classList.add('hidden'); return; }
+
+  cropUrl = URL.createObjectURL(file);
+  const image = $('cropImage');
+
+  await new Promise((resolve) => {
+    image.onload = () => {
+      cropNatural = { width: image.naturalWidth, height: image.naturalHeight };
+      resolve();
+    };
+    image.onerror = resolve;      // not decodable; fitToBand will say so properly
+    image.src = cropUrl;
+  });
+
+  $('cropBox').classList.remove('hidden');
+  paintCrop();
+}
+
+// Dragging moves the focus point. Deliberately inverted relative to the rect:
+// pulling the image left brings what was on the right into the frame.
+{
+  const stage = $('cropStage');
+  let dragging = null;
+
+  stage.addEventListener('pointerdown', (event) => {
+    if (!currentAspect()) return;
+    dragging = { x: event.clientX, y: event.clientY, focus: { ...cropFocus } };
+    stage.setPointerCapture(event.pointerId);
+  });
+
+  stage.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+    const box = stage.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+
+    cropFocus = {
+      x: dragging.focus.x - (event.clientX - dragging.x) / box.width,
+      y: dragging.focus.y - (event.clientY - dragging.y) / box.height
+    };
+    paintCrop();
+  });
+
+  const end = (event) => {
+    if (!dragging) return;
+    dragging = null;
+    try { stage.releasePointerCapture(event.pointerId); } catch { /* already gone */ }
+  };
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+}
+
+$('cropZoom').addEventListener('input', () => {
+  cropZoom = Number($('cropZoom').value) / 100;
+  paintCrop();
+});
+
+$('cropReset').addEventListener('click', () => {
+  cropFocus = { x: 0.5, y: 0.5 };
+  cropZoom = 1;
+  $('cropZoom').value = '100';
+  paintCrop();
+});
+
+$('aspectSelect').addEventListener('change', () => {
+  cropFocus = { x: 0.5, y: 0.5 };
+  cropZoom = 1;
+  $('cropZoom').value = '100';
+  showCropStage($('imageFile').files?.[0]);
+});
+
+// The stage is a percentage of a resizable column, so the overlay has to be
+// repainted when it changes size or it drifts off the image.
+window.addEventListener('resize', () => { if (currentAspect()) paintCrop(); });
 
 $('presetSelect').addEventListener('change', syncCustomVisibility);
 $('cpFormat').addEventListener('change', syncCustomVisibility);
@@ -1209,6 +1459,10 @@ $('cpFormat').addEventListener('change', syncCustomVisibility);
 $('imageFile').addEventListener('change', () => {
   $('resizeBtn').disabled = !$('imageFile').files?.length;
   clearResult();
+  cropFocus = { x: 0.5, y: 0.5 };
+  cropZoom = 1;
+  $('cropZoom').value = '100';
+  showCropStage($('imageFile').files?.[0]);
 });
 
 $('savePresetBtn').addEventListener('click', async () => {
@@ -1641,5 +1895,6 @@ async function renderMappings() {
 
 fillDocTypeSelect($('docType'), 'photo');
 fillDocTypeSelect($('resultDocType'), 'photo');
+loadAspects();
 loadPresets();
 boot();

@@ -653,6 +653,47 @@ input[type="file"]::file-selector-button {
 .result .bar { grid-column: 1 / -1; margin-top: var(--s1); }
 .saved-badge { font: var(--t-section); color: var(--success); }
 
+/* Crop. The stage shows the whole image; everything outside the target shape is
+   shaded rather than hidden, so you can see what you are giving up. */
+.crop {
+  margin-top: var(--s4);
+  padding: var(--s4);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.crop__stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  touch-action: none;              /* we handle the drag ourselves */
+  cursor: grab;
+  user-select: none;
+  line-height: 0;
+}
+.crop__stage:active { cursor: grabbing; }
+.crop__stage img { width: 100%; display: block; pointer-events: none; }
+
+/* One element, four shaded edges: a huge shadow spread darkens everything
+   outside the rect without needing four positioned overlays to keep in step. */
+.crop__shade {
+  position: absolute;
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55);
+  pointer-events: none;
+}
+.crop__rect {
+  position: absolute;
+  border: 2px solid var(--accent);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.6);
+  pointer-events: none;
+}
+.crop__controls { display: flex; align-items: center; gap: var(--s3); }
+.crop__controls label { font: var(--t-caption); color: var(--text-2); flex: 0 0 auto; }
+.crop__controls input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+
 /* ---------- 18. OCR ------------------------------------------------------ */
 
 pre#ocrRaw {

@@ -265,6 +265,12 @@ console.log('\n8. Crypto parameters have not drifted');
     /\{ name: 'AES-GCM', length: 256 \}[\s\S]{0,120}false,/.test(crypto),
     'an extractable key can be exported, logged and stored');
   ok('no password hash is stored', !/passwordHash|verifier/.test(crypto));
+
+  // A fixed or predictable salt lets one precomputed table crack every vault at
+  // once, which is the entire thing a salt exists to prevent.
+  ok('createVault generates a random salt',
+    /export async function createVault[\s\S]{0,200}const salt = randomBytes\(KDF\.saltBytes\)/.test(crypto),
+    'a fixed salt makes one precomputed table crack every vault');
 }
 
 // ============================================================================
@@ -519,6 +525,75 @@ console.log('\n15. Choice fields: never consent, never guess an option');
   ok('CHOICE_ONLY is enforced against free-text inputs',
     /M\.CHOICE_ONLY\.has\(key\)[\s\S]{0,120}!==\s*'select'/.test(content),
     '"OBC" typed into a free-text "Job Category" box is wrong, not merely useless');
+}
+
+// ============================================================================
+console.log('\n16. Changing a passphrase cannot strand the vault');
+// ============================================================================
+
+{
+  const crypto = code['lib/crypto.js'];
+  const options = code['options.js'];
+  const change = /export async function changePassphrase\([\s\S]*?\n\}/.exec(crypto)?.[0] ?? '';
+
+  ok('changePassphrase is defined', change.length > 0);
+  ok('it authorises with the current passphrase',
+    /unlockVault\(currentPassphrase, record\)/.test(change),
+    'being unlocked is not authorisation — an unattended machine is also unlocked');
+  ok('it rotates the salt',
+    /randomBytes\(KDF\.saltBytes\)/.test(change),
+    'one PBKDF2 run must not test a candidate against an old backup and the new record at once');
+
+  // The dangerous version writes a new record and then finds it will not open.
+  ok('it decrypts what it produced before returning it',
+    /await decryptVault\(key, next\)/.test(change),
+    'a half-applied change is an unopenable vault — worse than no change');
+  ok('the verification comes after the encrypt',
+    change.indexOf('encryptVault') < change.indexOf('decryptVault(key, next)'));
+  ok('changePassphrase writes nothing itself',
+    !/chrome\.storage/.test(change),
+    'the caller persists, and only a record already proven to open');
+
+  // The re-encryption works from the record on DISK, so an unsaved edit in the
+  // form would be silently thrown away.
+  ok('the UI refuses to change over unsaved edits',
+    /changePassBtn[\s\S]{0,900}if \(dirty\)/.test(options));
+  ok('the UI adopts the new key and params',
+    /sessionKey = changed\.key[\s\S]{0,120}kdfParams = changed\.kdfParams/.test(options),
+    'otherwise the next Save re-encrypts under the passphrase that was just replaced');
+}
+
+// ============================================================================
+console.log('\n17. Cropping, and what locking has to clear');
+// ============================================================================
+
+{
+  const image = code['lib/image.js'];
+  const options = code['options.js'];
+
+  ok('planCrop is exported', /export function planCrop\(/.test(image));
+  ok('ASPECT_PRESETS is exported', /export const ASPECT_PRESETS/.test(image));
+
+  // Scaling pixels that are about to be discarded is waste; worse, it makes
+  // maxWidthOrHeight apply to an edge the output does not have.
+  ok('the crop happens before the resize',
+    image.indexOf('const source = cropCanvas(decoded, crop)') > 0
+    && image.indexOf('const source = cropCanvas(decoded, crop)') < image.indexOf('SCALE_LADDER) {'));
+  ok('an uncropped image is not redrawn for nothing',
+    /if \(rect\.width === source\.width[\s\S]{0,160}return source;/.test(image));
+
+  // CLAUDE.md: locking must clear every trace derived from a document. The crop
+  // stage shows the FULL uncropped image and holds its own object URL.
+  const lock = /function lockLocally\(\)[\s\S]*?\n\}/.exec(options)?.[0] ?? '';
+  ok('lockLocally is defined', lock.length > 0);
+  ok('locking releases the crop preview', /releaseCropPreview\(\)/.test(lock),
+    'it holds an object URL of the whole original image');
+  ok('locking hides the crop stage', /cropBox'\)\.classList\.add\('hidden'\)/.test(lock));
+  ok('locking clears the passphrase boxes',
+    /cpCurrent', 'cpNew', 'cpConfirm'/.test(lock),
+    'an idle lock must not leave a passphrase sitting in the DOM of an unattended screen');
+  ok('releaseCropPreview revokes the URL',
+    /function releaseCropPreview[\s\S]{0,240}URL\.revokeObjectURL/.test(options));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

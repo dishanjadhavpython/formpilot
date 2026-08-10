@@ -135,6 +135,12 @@ that will bounce.
 Three presets (passport photo, signature, document scan) plus custom specs you
 can save.
 
+**Crop to a shape too.** A portal asking for "3.5 × 4.5 cm" is asking for an
+aspect ratio, and scaling cannot change one — only cutting can. Pick a shape
+(passport photo, square, signature strip, A4), drag the image to choose what to
+keep, zoom in if you need to. The rest of the picture is shaded rather than
+hidden, so you can see what you are giving up before you commit.
+
 ### OCR
 Point it at a PAN card, Aadhaar or marksheet and it suggests values for your
 fields, with a confidence score. Every suggestion is editable and individually
@@ -217,6 +223,15 @@ scripts are still confined to files shipped inside the extension.
 
 ## Backup and restore
 
+**Change passphrase** re-encrypts everything under a new one. It asks for your
+current passphrase first — being unlocked is not authorisation, since anyone
+sitting at an unattended machine is also "unlocked" — and the new record is
+decrypted and proven to open *before* anything is written, because a
+half-applied change would be a vault nothing could open.
+
+Existing backup files keep needing the **old** passphrase. Export a fresh one
+afterwards.
+
 **Export** writes the encrypted vault to a `.formpilot-backup` file — the same
 ciphertext that sits in storage, so it is only as strong as the passphrase that
 produced it. Keep it somewhere you control.
@@ -277,10 +292,8 @@ pre-filled email that must all be left alone. Anything red is a bug.
   Aadhaar, other ID proof) are handled; `multiple` file inputs and PDF uploads
   are not — the vault only ever stores images. Checkboxes are refused on
   purpose, as above.
-- The image tool scales but does not crop, so specs demanding an exact aspect
-  ratio (3.5×4.5 cm) need cropping elsewhere first.
-- No change-passphrase flow yet, so a backup stays tied to the passphrase in
-  force when it was taken.
+- Cropping is a single rectangle you position and zoom; there is no rotation,
+  straightening or background removal.
 - No cloud sync and no mobile app, by design.
 
 ## Privacy policy

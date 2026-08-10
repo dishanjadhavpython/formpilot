@@ -109,6 +109,36 @@ const MUTATIONS = [
       "if (M.CHOICE_ONLY.has(key) && el.tagName.toLowerCase() !== 'select') {",
       'if (false) {')],
 
+  // "The encrypt cannot fail, why decrypt it again" - and the one time it does,
+  // the user is left with a vault nothing can open.
+  ['stops verifying a passphrase change before returning it', 'lib/crypto.js',
+    (s) => s.replace('  await decryptVault(key, next);\n', '')],
+
+  // "Reuse the salt, it is already random" - which lets one PBKDF2 run per
+  // candidate test an old backup and the new record at once.
+  // Anchored on the unlockVault call above it, because createVault opens with
+  // the same two lines and comes first in the file - an unanchored replace
+  // silently mutates the wrong function and proves nothing.
+  ['reuses the old salt on a passphrase change', 'lib/crypto.js',
+    (s) => s.replace(
+      'const { data } = await unlockVault(currentPassphrase, record);\n\n  const salt = randomBytes(KDF.saltBytes);',
+      'const { data } = await unlockVault(currentPassphrase, record);\n\n  const salt = base64ToBytes(record.kdf.salt);')],
+
+  // The same regression one function up, where nothing was watching until now.
+  ['gives every new vault the same fixed salt', 'lib/crypto.js',
+    (s) => s.replace(
+      'export async function createVault(passphrase, initialData) {\n  const salt = randomBytes(KDF.saltBytes);',
+      'export async function createVault(passphrase, initialData) {\n  const salt = new Uint8Array(16);')],
+
+  // Locking that leaves the whole original image on screen, under an object URL
+  // that still resolves.
+  ['leaves the crop preview up after locking', 'options.js',
+    (s) => s.replace('  releaseCropPreview();\n', '')],
+
+  // The passphrase the user just typed, left in the DOM of an unattended screen.
+  ['leaves the passphrase boxes filled after locking', 'options.js',
+    (s) => s.replace("  for (const id of ['cpCurrent', 'cpNew', 'cpConfirm']) $(id).value = '';\n", '')],
+
   // "The demo would be more convincing with the user's actual details in it."
   ['lets the demo read the unlocked vault', 'demo.js',
     (s) => s.replace(

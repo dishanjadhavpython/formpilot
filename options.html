@@ -214,6 +214,29 @@
         </div>
       </div>
 
+      <div class="preset-row">
+        <div class="field-group">
+          <label for="aspectSelect">Shape</label>
+          <select id="aspectSelect"></select>
+          <p class="sub">A portal asking for &ldquo;3.5 &times; 4.5 cm&rdquo; is asking for a
+          shape. Scaling cannot change one &mdash; only cropping can.</p>
+        </div>
+      </div>
+
+      <div id="cropBox" class="crop hidden">
+        <div class="crop__stage" id="cropStage">
+          <img id="cropImage" alt="Drag to choose which part of the image to keep">
+          <div class="crop__shade" id="cropShade" aria-hidden="true"></div>
+          <div class="crop__rect" id="cropRect" aria-hidden="true"></div>
+        </div>
+        <div class="crop__controls">
+          <label for="cropZoom">Zoom</label>
+          <input id="cropZoom" type="range" min="100" max="400" step="1" value="100">
+          <button id="cropReset" class="secondary tiny" type="button">Centre</button>
+        </div>
+        <p class="sub" id="cropNote">Drag the image to choose what to keep.</p>
+      </div>
+
       <div id="customPreset" class="custom-preset hidden">
         <div class="wide"><strong>Custom spec</strong></div>
         <div class="field-group">
@@ -325,6 +348,28 @@
       <div class="actions u-mt-0">
         <button id="exportBtn" class="secondary" type="button">Export encrypted backup</button>
         <span id="backupStatus" class="status" role="status" aria-live="polite"></span>
+      </div>
+
+      <h3>Change passphrase</h3>
+      <p class="hint">
+        Re-encrypts everything under a new passphrase. Existing backup files keep
+        working with the <em>old</em> one &mdash; export a fresh backup afterwards.
+      </p>
+      <div class="field-group">
+        <label for="cpCurrent">Current passphrase</label>
+        <input id="cpCurrent" type="password" autocomplete="current-password">
+      </div>
+      <div class="field-group">
+        <label for="cpNew">New passphrase</label>
+        <input id="cpNew" type="password" autocomplete="new-password">
+      </div>
+      <div class="field-group">
+        <label for="cpConfirm">Confirm new passphrase</label>
+        <input id="cpConfirm" type="password" autocomplete="new-password">
+      </div>
+      <div class="actions">
+        <button id="changePassBtn" class="secondary" type="button">Change passphrase</button>
+        <span id="changePassStatus" class="status" role="status" aria-live="polite"></span>
       </div>
 
       <h3>Restore</h3>

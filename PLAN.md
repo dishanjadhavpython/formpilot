@@ -19,9 +19,10 @@ Rules that apply to every phase are in [CLAUDE.md](CLAUDE.md).
 | 8 | Earn trust in the first ninety seconds | ✅ done |
 | 9 | Launch — Edge Add-ons (free) first, Chrome when the $5 is available | 🟡 prepared — submission pending |
 | 10 | Choice fields — radio groups, and the checkbox refusal | ✅ done |
-| 11 | Crop to aspect ratio, change passphrase, OCR pre-processing | planned |
-| 12 | Reach — split `options.js`, then `_locales` (en, hi, mr) | planned |
-| 13 | Distribution | ongoing |
+| 11 | Crop to a shape, and change passphrase | ✅ done |
+| 12 | OCR pre-processing — deskew, threshold, upscale | planned |
+| 13 | Reach — split `options.js`, then `_locales` (en, hi, mr) | planned |
+| 14 | Distribution | ongoing |
 
 Phases 0–6 built the extension. Phases 7–9 are about the gap between "an
 extension that works" and "an extension people can find, trust and install" —
@@ -500,6 +501,86 @@ all three answered on one Fill click, and no declaration checkbox is ever
 ticked. ✅
 
 **Deferred:** same-origin iframes; teach mode for radio groups.
+
+## Phase 11 — Crop to a shape, and change passphrase ✅
+
+Two places the workflow broke. Both had been deferred since the phase that
+introduced them.
+
+### Cropping
+
+A portal asking for "3.5 × 4.5 cm" is asking for an **aspect ratio**, and the
+one thing scaling cannot do is change an aspect ratio. So the image tool sent
+the user to another application at precisely the moment it was about to be
+useful — and then they came back and ran the band search on whatever that
+application produced.
+
+`planCrop()` in `lib/image.js` is deliberately pure: source dimensions, a ratio,
+a normalised focus point and a zoom, in; a rect in source pixels, out. No canvas,
+no DOM, no image. That puts the part most likely to be subtly wrong — a rect
+hanging one pixel over the boundary, a ratio drifting as it rounds, a focus point
+escaping — under Node, where 30-odd cases can hammer it. Six shapes ship
+(3.5×4.5 cm, square, two signature strips, A4, none).
+
+**Crop first, resize second.** The other order scales pixels that are about to
+be discarded, and makes `maxWidthOrHeight` apply to an edge the output does not
+have.
+
+The UI shows the *whole* image with everything outside the target shape shaded
+rather than hidden, so you can see what you are giving up. Dragging moves the
+focus; a slider zooms. `original` is captured before the crop, so the report
+honestly says 4000×3000 became 350×450 instead of pretending the crop never
+happened.
+
+One bug found by its own test: a non-finite focus fell through `NaN || 0` to the
+left edge instead of the centre — a plausible-looking wrong answer nobody would
+have reported as a bug.
+
+**Locking had to learn about it.** The crop stage holds an object URL of the
+*full, uncropped* original — the most revealing single thing on the page, and
+not something `clearResult()` knew about, since that only tracks the compressed
+output. `lockLocally()` now releases it and hides the stage.
+
+### Change passphrase
+
+Before this, a passphrase you suspected was compromised was one you were stuck
+with: export, wipe, start again was the only remedy, and every backup stayed
+tied to whatever passphrase was in force when it was taken.
+
+Three decisions:
+
+- **The current passphrase is the authorisation.** Being unlocked is not enough
+  — anyone at an unattended machine is also "unlocked".
+- **A fresh salt.** Everywhere else the salt is fixed for the life of the vault,
+  and regenerating it on an ordinary save would be a bug. A passphrase change is
+  the one moment everything is re-encrypted anyway, and separate salts stop one
+  PBKDF2 run per candidate testing an old backup and the new record at once.
+  CLAUDE.md's invariant was reworded accordingly: fixed for the life of a
+  *passphrase*, not of the vault.
+- **Verify before the caller writes.** `changePassphrase()` decrypts the record
+  it just produced, with the new key, before returning it. A half-applied change
+  is a vault nothing can open, which is strictly worse than no change. It also
+  writes nothing itself — the caller persists, and only a record already proven
+  to open.
+
+The UI refuses to run over unsaved edits, because the re-encryption works from
+the record on disk and an edit still in the form would be silently discarded.
+`lockLocally()` also clears the three passphrase boxes: an idle lock must not
+leave a passphrase sitting in the DOM of an unattended screen.
+
+### On the harness
+
+The mutation for salt reuse came back MISSED, and the reason was better than the
+mutation: `createVault()` opens with the *same two lines* and comes first in the
+file, so an unanchored `String.replace` had been mutating the wrong function —
+and nothing guarded `createVault`'s salt at all. Anchored the mutation, and added
+the missing check plus a mutation for it.
+
+**Done when:** a 4 MB landscape photo becomes a 350×450 portrait JPEG inside a
+20–50 KB band without leaving FormPilot, and a passphrase can be changed and the
+vault still opens. ✅
+
+**Deferred:** rotation and straightening; OCR pre-processing moves to Phase 12.
 
 ---
 

@@ -1,4 +1,4 @@
-import { createVault, unlockVault, encryptVault, KDF } from '../lib/crypto.js';
+import { createVault, unlockVault, encryptVault, changePassphrase, KDF } from '../lib/crypto.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond) => { cond ? (pass++, console.log('  PASS', name)) : (fail++, console.log('  FAIL', name)); };
@@ -76,6 +76,48 @@ ok('key.extractable === false', key.extractable === false);
 let threw3 = null;
 try { await crypto.subtle.exportKey('raw', key); } catch (e) { threw3 = e; }
 ok('exportKey refuses', threw3 !== null);
+
+console.log('\n7. Changing the passphrase');
+{
+  const before = await createVault('the original passphrase', secret);
+  const changed = await changePassphrase('the original passphrase', 'a completely new one', before.record);
+
+  ok('the new record opens with the new passphrase',
+    (await unlockVault('a completely new one', changed.record)).data.note === secret.note);
+
+  let refused = null;
+  try { await unlockVault('the original passphrase', changed.record); }
+  catch (e) { refused = e; }
+  ok('the old passphrase no longer opens it', refused?.code === 'BAD_PASSPHRASE');
+
+  // The salt is fixed for the life of a PASSPHRASE, not of the vault. Reusing it
+  // would let one PBKDF2 run per candidate test an old backup and the new record
+  // at once.
+  ok('the salt is rotated', changed.record.kdf.salt !== before.record.kdf.salt);
+  ok('the IV is fresh too', changed.record.iv !== before.record.iv);
+  ok('iterations are unchanged', changed.record.kdf.iterations === before.record.kdf.iterations);
+
+  ok('the returned key is non-extractable', changed.key.extractable === false);
+  ok('the data survives intact', changed.data.note === secret.note);
+
+  // Authorisation: being unlocked is not enough, since anyone at an unattended
+  // machine is also "unlocked".
+  let wrong = null;
+  try { await changePassphrase('not the current one', 'whatever comes next', before.record); }
+  catch (e) { wrong = e; }
+  ok('a wrong current passphrase is refused', wrong?.code === 'BAD_PASSPHRASE');
+
+  // The old record is untouched: changePassphrase returns a new one and writes
+  // nothing, so a caller that fails to persist still has a working vault.
+  ok('the original record is not mutated',
+    (await unlockVault('the original passphrase', before.record)).data.note === secret.note);
+
+  // Chained changes must keep working - each one re-derives from the record it
+  // was handed, not from anything cached.
+  const again = await changePassphrase('a completely new one', 'and a third one now', changed.record);
+  ok('a second change works', (await unlockVault('and a third one now', again.record)).data.note === secret.note);
+  ok('each change rotates the salt again', again.record.kdf.salt !== changed.record.kdf.salt);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

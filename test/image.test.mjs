@@ -32,7 +32,7 @@ const bic = (await import(`${ROOT}/vendor/browser-image-compression.mjs`)).defau
 let sourceSpec = { w: 3000, h: 4000, complexity: 1 };
 bic.drawFileInCanvas = async () => [null, makeCanvas(sourceSpec.w, sourceSpec.h, sourceSpec.complexity)];
 
-const { fitToBand, DEFAULT_PRESETS } = await import(`${ROOT}/lib/image.js`);
+const { fitToBand, DEFAULT_PRESETS, ASPECT_PRESETS, planCrop } = await import(`${ROOT}/lib/image.js`);
 
 let pass = 0, fail = 0;
 const ok = (name, cond, detail = '') => {
@@ -130,6 +130,84 @@ r = await fitToBand(file(50_000, 'sig.jpg'), preset('signature'));
 ok('encodes via convertToBlob when no scaling is needed', r.ok, r.ok ? KB(r.bytes) : r.reason);
 ok('dimensions passed through untouched', r.ok && r.width === 300 && r.height === 100, `${r.width}x${r.height}`);
 bic.drawFileInCanvas = realDrawFileInCanvas;
+
+// ============================================================================
+console.log('\n6. planCrop — pure geometry, so the edges are checkable');
+// ============================================================================
+//
+// Scaling cannot change an aspect ratio; only cutting can. This is the part of
+// cropping most likely to be subtly wrong - a rect that hangs one pixel over the
+// boundary, a ratio that drifts as it rounds, a focus point that escapes.
+
+{
+  const ratioOf = (r) => r.width / r.height;
+  const inside = (r, w, h) => r.x >= 0 && r.y >= 0 && r.x + r.width <= w && r.y + r.height <= h;
+  const close = (a, b, tolerance = 0.005) => Math.abs(a - b) <= tolerance;
+
+  const PORTRAIT = 35 / 45;      // the 3.5 x 4.5 cm slot every portal wants
+
+  {
+    const r = planCrop(4000, 3000, PORTRAIT);
+    ok('a landscape source crops to a portrait shape', close(ratioOf(r), PORTRAIT), ratioOf(r).toFixed(4));
+    ok('it takes the full height it can', r.height === 3000, `${r.width}x${r.height}`);
+    ok('and stays inside the source', inside(r, 4000, 3000), JSON.stringify(r));
+    ok('centred by default', r.x === Math.round((4000 - r.width) / 2), String(r.x));
+  }
+
+  {
+    const r = planCrop(3000, 4000, 3);      // wide signature strip from a portrait
+    ok('a portrait source crops to a wide strip', close(ratioOf(r), 3), ratioOf(r).toFixed(4));
+    ok('it takes the full width it can', r.width === 3000, `${r.width}x${r.height}`);
+    ok('and stays inside', inside(r, 3000, 4000), JSON.stringify(r));
+  }
+
+  // The focus point is where the user dragged to. It must never push the rect
+  // over an edge, however far it is pushed.
+  for (const [fx, fy] of [[0, 0], [1, 1], [-5, -5], [9, 9], [0.5, 0], [0, 0.5]]) {
+    const r = planCrop(4000, 3000, PORTRAIT, { x: fx, y: fy });
+    ok(`focus (${fx}, ${fy}) stays inside the image`, inside(r, 4000, 3000), JSON.stringify(r));
+  }
+
+  ok('a nonsense focus falls back to the centre',
+    planCrop(4000, 3000, PORTRAIT, { x: NaN, y: undefined }).x === planCrop(4000, 3000, PORTRAIT).x);
+
+  {
+    const one = planCrop(4000, 3000, 1);
+    const two = planCrop(4000, 3000, 1, { x: 0.5, y: 0.5 }, 2);
+    ok('zoom 2 halves each edge', two.width === Math.round(one.width / 2), `${one.width} -> ${two.width}`);
+    ok('zoom keeps the ratio', close(ratioOf(two), 1), ratioOf(two).toFixed(4));
+    ok('zoom below 1 is ignored, not honoured',
+      planCrop(4000, 3000, 1, { x: 0.5, y: 0.5 }, 0.25).width === one.width,
+      'a rect larger than the image would need invented pixels');
+    ok('a huge zoom still yields a usable rect',
+      planCrop(4000, 3000, 1, { x: 0.5, y: 0.5 }, 100000).width >= 1);
+  }
+
+  // "No crop" has to mean exactly the whole frame, or an untouched image would
+  // still be re-drawn through a canvas for nothing.
+  for (const ratio of [null, undefined, 0, -1, NaN, Infinity, 'photo']) {
+    const r = planCrop(4000, 3000, ratio);
+    ok(`ratio ${String(ratio)} means the full frame`,
+      r.x === 0 && r.y === 0 && r.width === 4000 && r.height === 3000, JSON.stringify(r));
+  }
+
+  ok('a degenerate source is handled', planCrop(0, 0, PORTRAIT).width === 0);
+  ok('a 1x1 source is handled', planCrop(1, 1, PORTRAIT).width === 1);
+
+  // Every shipped shape must survive both orientations without escaping.
+  for (const aspect of ASPECT_PRESETS) {
+    if (!aspect.ratio) continue;
+    const wide = planCrop(4000, 3000, aspect.ratio);
+    const tall = planCrop(3000, 4000, aspect.ratio);
+    ok(`${aspect.id} fits a landscape source`,
+      inside(wide, 4000, 3000) && close(ratioOf(wide), aspect.ratio), JSON.stringify(wide));
+    ok(`${aspect.id} fits a portrait source`,
+      inside(tall, 3000, 4000) && close(ratioOf(tall), aspect.ratio), JSON.stringify(tall));
+  }
+
+  ok('the "no crop" preset really carries no ratio',
+    ASPECT_PRESETS.find((a) => a.id === 'free')?.ratio === null);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
